@@ -7,6 +7,7 @@ __pycache__/
 *pt
 *cpt
 *onnx
+*zip
 
 # C extensions
 *.so
