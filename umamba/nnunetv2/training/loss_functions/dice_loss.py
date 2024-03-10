@@ -472,6 +472,7 @@ class DC_and_Focal_loss(nn.Module):
         super(DC_and_Focal_loss, self).__init__()
         self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
         self.focal = FocalLoss(apply_nonlin=softmax_helper, **focal_kwargs)
+        print("Loss function: ",self.__class__.__name__)
 
     def forward(self, net_output, target):
         dc_loss = self.dc(net_output, target)

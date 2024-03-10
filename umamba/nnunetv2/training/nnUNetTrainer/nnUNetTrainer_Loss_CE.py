@@ -11,13 +11,12 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-from nnunetv2.training.loss_functions.crossentropy import RobustCrossEntropyLoss
-from nnunetv2.training.nnUNetTrainer import nnUNetTrainer 
+# from nnunetv2.training.loss_functions.crossentropy import RobustCrossEntropyLoss
+# from nnunetv2.training.nnUNetTrainer import nnUNetTrainer 
 
+# class nnUNetTrainerV2_Loss_CE(nnUNetTrainer):
 
-class nnUNetTrainerV2_Loss_CE(nnUNetTrainer):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
-        self.loss = RobustCrossEntropyLoss()
+#     def initialize(self):
+#         # Call the superclass's initialize method
+#         super().initialize()
+#         self.loss = RobustCrossEntropyLoss()  

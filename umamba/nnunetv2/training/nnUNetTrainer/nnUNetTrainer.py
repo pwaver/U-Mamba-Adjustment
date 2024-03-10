@@ -45,7 +45,7 @@ from nnunetv2.training.dataloading.data_loader_3d import nnUNetDataLoader3D
 from nnunetv2.training.dataloading.nnunet_dataset import nnUNetDataset
 from nnunetv2.training.dataloading.utils import get_case_identifiers, unpack_dataset
 from nnunetv2.training.logging.nnunet_logger import nnUNetLogger
-from nnunetv2.training.loss.compound_losses import DC_and_CE_loss, DC_and_BCE_loss
+from nnunetv2.training.loss.compound_losses import DC_and_CE_loss, DC_and_BCE_loss, DC_and_Focal_loss, DC_and_topk_loss
 from nnunetv2.training.loss.deep_supervision import DeepSupervisionWrapper
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn, MemoryEfficientSoftDiceLoss
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
@@ -348,6 +348,8 @@ class nnUNetTrainer(object):
             self.oversample_foreground_percent = oversample_percents[my_rank]
 
     def _build_loss(self):
+        # print("{self.__class__.__name__} loss function per configuration manager: ", self.configuration_manager.lossFunction)
+        classWeights = torch.tensor([1., 10., 10.])
         if self.label_manager.has_regions:
             loss = DC_and_BCE_loss({},
                                    {'batch_dice': self.configuration_manager.batch_dice,
@@ -355,9 +357,16 @@ class nnUNetTrainer(object):
                                    use_ignore_label=self.label_manager.ignore_label is not None,
                                    dice_class=MemoryEfficientSoftDiceLoss)
         else:
-            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
-                                   'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {}, weight_ce=1, weight_dice=1,
+            # loss = DC_and_topk_loss({'batch_dice': self.configuration_manager.batch_dice,
+            #                        'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'alpha':[1.,10.,10.]}, weight_ce=1, weight_dice=1,
+            #                       ignore_label=self.label_manager.ignore_label)
+            loss = DC_and_Focal_loss({'batch_dice': self.configuration_manager.batch_dice,
+                                   'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'alpha':[1.,10.,10.]}, weight_ce=1, weight_dice=1,
                                   ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
+            # loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
+            #                        'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'alpha':[1.,10.,10.]}, weight_ce=1, weight_dice=1,
+            #                       ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
+
 
         # we give each output a weight which decreases exponentially (division by 2) as the resolution decreases
         # this gives higher resolution outputs more weight in the loss

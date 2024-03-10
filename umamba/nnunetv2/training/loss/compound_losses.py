@@ -1,6 +1,6 @@
 import torch
 from nnunetv2.training.loss.dice import SoftDiceLoss, MemoryEfficientSoftDiceLoss
-from nnunetv2.training.loss.robust_ce_loss import RobustCrossEntropyLoss, TopKLoss
+from nnunetv2.training.loss.robust_ce_loss import RobustCrossEntropyLoss, TopKLoss, MulticlassFocalLoss
 from nnunetv2.utilities.helpers import softmax_helper_dim1
 from torch import nn
 
@@ -55,6 +55,28 @@ class DC_and_CE_loss(nn.Module):
         result = self.weight_ce * ce_loss + self.weight_dice * dc_loss
         return result
 
+class DC_and_Focal_loss(DC_and_CE_loss):
+    def __init__(self, soft_dice_kwargs, ce_kwargs, weight_ce=1, weight_dice=1, ignore_label=None,
+                 dice_class=SoftDiceLoss):
+        """
+        Weights for CE and Dice do not need to sum to one. You can set whatever you want.
+        :param soft_dice_kwargs:
+        :param ce_kwargs:
+        :param aggregate:
+        :param square_dice:
+        :param weight_ce:
+        :param weight_dice:
+        """
+        super(DC_and_CE_loss, self).__init__()
+        if ignore_label is not None:
+            ce_kwargs['ignore_index'] = ignore_label
+
+        self.weight_dice = weight_dice
+        self.weight_ce = weight_ce
+        self.ignore_label = ignore_label
+
+        self.ce = MulticlassFocalLoss(**ce_kwargs)
+        self.dc = dice_class(apply_nonlin=softmax_helper_dim1, **soft_dice_kwargs)
 
 class DC_and_BCE_loss(nn.Module):
     def __init__(self, bce_kwargs, soft_dice_kwargs, weight_ce=1, weight_dice=1, use_ignore_label: bool = False,
