@@ -39,43 +39,90 @@ class TopKLoss(RobustCrossEntropyLoss):
         res, _ = torch.topk(res.view((-1, )), int(num_voxels * self.k / 100), sorted=False)
         return res.mean()
 
+# Per Claude 3
+
 class MulticlassFocalLoss(nn.Module):
-    def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
-        super().__init__()
+    def __init__(self, alpha=None, gamma=2, reduction='mean'):
+        super(MulticlassFocalLoss, self).__init__()
+        if alpha is not None:
+            if isinstance(alpha, list):
+                self.alpha = torch.tensor(alpha)
+            else:
+                self.alpha = alpha
+        else:
+            self.alpha = None
         self.gamma = gamma
-        self.alpha = alpha
         self.reduction = reduction
-        if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
-        if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
 
     def forward(self, inputs, targets):
-        # Ensure class probabilities using softmax
-        inputs = F.softmax(inputs, dim=1)
-        # Create the targets in one-hot encoded format
-        # target_one_hot = F.one_hot(targets, num_classes=inputs.shape[1]).float()
+        num_classes = inputs.shape[1]
         
-        # Calculate log probabilities
-        logpt = torch.log(inputs)
-        # Gather the log probabilities by the target class
-        logpt = logpt.gather(1, targets.long().unsqueeze(1))
-        logpt = logpt.view(-1)
-        pt = logpt.exp()
-
-        if self.alpha is not None:
-            if self.alpha.type()!=inputs.data.type():
-                self.alpha = self.alpha.type_as(inputs.data)
-            at = self.alpha.gather(0, targets.data.view(-1).long())
-            logpt = logpt * at
-
+        # Apply softmax to get class probabilities
+        prob = F.softmax(inputs, dim=1)
+        
+        # Create a mask for the target class probabilities
+        class_mask = torch.zeros_like(prob)
+        targets_int64 = targets.to(torch.int64)
+        class_mask.scatter_(1, targets_int64.unsqueeze(1), 1)
+        
         # Compute the focal loss
-        loss = -1 * (1 - pt) ** self.gamma * logpt
-
-        if self.reduction == 'mean':
-            return loss.mean()
-        elif self.reduction == 'sum':
-            return loss.sum()
+        probs = (prob * class_mask).sum(1)
+        if self.alpha is not None:
+            if self.alpha.dtype != probs.dtype:
+                self.alpha = self.alpha.to(probs.dtype)
+            if self.alpha.shape[0] != num_classes:
+                raise ValueError(f"The number of class weights ({self.alpha.shape[0]}) does not match the number of classes ({num_classes})")
+            self.alpha = self.alpha.to(targets_int64.device)  # Move alpha to the same device as targets
+            alpha = self.alpha[targets_int64]
         else:
-            return loss
+            alpha = 1.
+            
+        focal_loss = -alpha * (1 - probs) ** self.gamma * torch.log(probs + 1e-12)
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+# Per GPT4:
+# class MulticlassFocalLoss(nn.Module):
+#     def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
+#         super().__init__()
+#         self.gamma = gamma
+#         self.alpha = alpha
+#         self.reduction = reduction
+#         if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
+#         if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
+
+#     def forward(self, inputs, targets):
+#         # Ensure class probabilities using softmax
+#         inputs = F.softmax(inputs, dim=1)
+#         # Create the targets in one-hot encoded format
+#         # target_one_hot = F.one_hot(targets, num_classes=inputs.shape[1]).float()
+        
+#         # Calculate log probabilities
+#         logpt = torch.log(inputs)
+#         # Gather the log probabilities by the target class
+#         logpt = logpt.gather(1, targets.long().unsqueeze(1))
+#         logpt = logpt.view(-1)
+#         pt = logpt.exp()
+
+#         if self.alpha is not None:
+#             if self.alpha.type()!=inputs.data.type():
+#                 self.alpha = self.alpha.type_as(inputs.data)
+#             at = self.alpha.gather(0, targets.data.view(-1).long())
+#             logpt = logpt * at
+
+#         # Compute the focal loss
+#         loss = -1 * (1 - pt) ** self.gamma * logpt
+
+#         if self.reduction == 'mean':
+#             return loss.mean()
+#         elif self.reduction == 'sum':
+#             return loss.sum()
+#         else:
+#             return loss
 
 # Focal loss variant of cross entropy loss, designed to emphasize hard to classify pixels.
 # Alternate implementations:
