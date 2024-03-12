@@ -618,24 +618,24 @@ class nnUNetPredictor(object):
                                                            'constant', {'value': 0}, True,
                                                            None)
                 slicers = self._internal_get_sliding_window_slicers(data.shape[1:])
-                print(str(self.configuration_manager))
-                try:
-                    lossFunctionName = self.configuration_manager.lossFunction
-                except:
-                    lossFunctionName = "DC_and_topk_loss" # "defaultLossFunction"
-                onnxFileName = f"{self.network.__class__.__name__}-{self.configuration_manager.data_identifier}-{lossFunctionName}-1-10-10.onnx"
-                # # onnxFileName = "UMambaBot-2d.onnx"
-                netAnalysisPath = netAnalysisDir + onnxFileName
+                # print(str(self.configuration_manager))
+                # try:
+                #     lossFunctionName = self.configuration_manager.lossFunction
+                # except:
+                #     lossFunctionName = "DC_and_Focal_loss" # "defaultLossFunction"
+                # onnxFileName = f"{self.network.__class__.__name__}-{self.configuration_manager.data_identifier}-{lossFunctionName}-1-10-10.onnx"
+                # # # onnxFileName = "UMambaBot-2d.onnx"
+                # netAnalysisPath = netAnalysisDir + onnxFileName
                 # torch.onnx.dynamo_export(self.network,e data, netAnalysisPath)
                 # print("data.shape: ", data.shape)
                 if self.perform_everything_on_device and self.device != 'cpu':
                     # per https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html
-                    print("gpu version of onnx would save to ", netAnalysisPath)
-                    randomTensor = torch.rand((1, 5, 512, 512)).cuda().half()
-                    self.network.eval()
-                    # torch_out = self.network(randomTensor)
-                    torch.onnx.export(self.network, randomTensor, netAnalysisPath, verbose=True, export_params=True, opset_version=15)
-                    print("onnx saved")
+                    # print("gpu version of onnx would save to ", netAnalysisPath)
+                    # randomTensor = torch.rand((1, 5, 512, 512)).cuda().half()
+                    # self.network.eval()
+                    # # torch_out = self.network(randomTensor)
+                    # torch.onnx.export(self.network, randomTensor, netAnalysisPath, verbose=True, export_params=True, opset_version=15)
+                    # print("onnx saved")
                     # we need to try except here because we can run OOM in which case we need to fall back to CPU as a results device
                     try:
                         predicted_logits = self._internal_predict_sliding_window_return_logits(data, slicers, self.perform_everything_on_device)

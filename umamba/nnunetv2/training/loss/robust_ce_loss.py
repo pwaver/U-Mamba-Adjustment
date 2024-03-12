@@ -13,9 +13,17 @@ class RobustCrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, alpha=None, ignore_index: int = -100, reduction: str = 'mean'):
         # Initialize the superclass (nn.CrossEntropyLoss) with the weight, ignore_index, and reduction parameters        
         # Define class weights
-        classWeights = torch.tensor([1., 10.0, 10.], dtype=torch.float).cuda()
-        print("RobustCrossEntropyLoss with class weights ", str(classWeights))
-        super().__init__(weight=classWeights, ignore_index=ignore_index, reduction=reduction)
+        alpha = torch.tensor([1., 10.0, 10.], dtype=torch.float).cuda()
+        if alpha is not None:
+            if isinstance(alpha, list):
+                self.alpha = torch.tensor(alpha)
+            else:
+                self.alpha = alpha
+        else:
+            self.alpha = None
+
+        print("RobustCrossEntropyLoss with class weights (alpha) ", str(alpha))
+        super().__init__(weight=alpha, ignore_index=ignore_index, reduction=reduction)
 
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
         if target.ndim == input.ndim:
