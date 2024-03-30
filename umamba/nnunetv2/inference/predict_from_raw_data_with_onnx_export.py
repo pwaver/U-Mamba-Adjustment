@@ -34,6 +34,7 @@ from nnunetv2.utilities.label_handling.label_handling import determine_num_input
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager, ConfigurationManager
 from nnunetv2.utilities.utils import create_lists_from_splitted_dataset_folder
 
+LOSS_FUNCTION_SPECIFIER = "unspecified"
 
 class nnUNetPredictor(object):
     def __init__(self,
@@ -48,6 +49,7 @@ class nnUNetPredictor(object):
         self.verbose = verbose
         self.verbose_preprocessing = verbose_preprocessing
         self.allow_tqdm = allow_tqdm
+        self.lossFunctionSpecifier = "unspecified"
 
         self.plans_manager, self.configuration_manager, self.list_of_parameters, self.network, self.dataset_json, \
         self.trainer_name, self.allowed_mirroring_axes, self.label_manager = None, None, None, None, None, None, None, None
@@ -520,7 +522,45 @@ class nnUNetPredictor(object):
     def _internal_maybe_mirror_and_predict(self, x: torch.Tensor) -> torch.Tensor:
         mirror_axes = self.allowed_mirroring_axes if self.use_mirroring else None
         prediction = self.network(x)
+        
+        # Exploit here for onnx export
 
+        # Define the directory for saving the ONNX model
+        netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
+        # onnx_model_dir = os.path.join(netAnalysisDir, "onnx_models")
+        # os.makedirs(onnx_model_dir, exist_ok=True)
+
+        # Set the model to evaluation mode
+        self.network.eval()
+
+        # Generate a dummy input for the export with shape of supplied input
+        dummy_input = torch.randn(1, *x.shape[1:], device=x.device)
+
+        # Define the path for the ONNX model
+        print("Exporting ONNX model...")
+        print(str(self.configuration_manager))
+        try:
+            lossFunctionName = self.configuration_manager.lossFunction
+        except:
+            lossFunctionName =  LOSS_FUNCTION_SPECIFIER # "DC_and_Focal_loss" #
+        onnxFileName = f"{self.network.__class__.__name__}-{self.configuration_manager.data_identifier}-{lossFunctionName}.onnx" # WATCHME confirm class weights
+        onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
+
+        # Export the model
+        torch.onnx.export(self.network, dummy_input, onnx_model_path, 
+                          export_params=True, opset_version=15, 
+                          do_constant_folding=True, verbose=True,
+                          input_names=['input'], output_names=['output'],
+                          dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
+
+        # torch.onnx.export(self.network, x, onnx_model_path, 
+        #                   export_params=True, opset_version=15, 
+        #                   do_constant_folding=True, verbose=True,
+        #                   input_names=['input'], output_names=['output'],
+        #                       dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
+
+        if self.verbose: print(f"Model exported at {onnx_model_path}")
+     
         if mirror_axes is not None:
             # check for invalid numbers in mirror_axes
             # x should be 5d for 3d images and 4d for 2d. so the max value of mirror_axes cannot exceed len(x.shape) - 3
@@ -583,6 +623,19 @@ class nnUNetPredictor(object):
         assert isinstance(input_image, torch.Tensor)
         self.network = self.network.to(self.device)
         self.network.eval()
+        print("Network eval mode in nnUNetPredictor.predict_sliding_window_return_logits(self, input_image: torch.Tensor)")
+        # This might be a place to export onnx
+        # https://pytorch.org/docs/stable/onnx.html
+        # can try https://pytorch.org/docs/stable/onnx_dynamo.html
+        # or https://pytorch.org/docs/stable/onnx_torchscript.html
+        # netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
+        # print("exporting " + netAnalysisPath)
+        # randomTensor = torch.rand((5, 512, 512))
+        # # onnx_program = torch.onnx.dynamo_export(self.network, randomTensor)
+        # # onnx_program.save(netAnalysisPath)
+        # model = self.network
+        # model = model.cpu()
+        # torch.onnx.export(model, randomTensor, netAnalysisPath, verbose=True, export_params=True)
         
         empty_cache(self.device)
         
@@ -605,8 +658,24 @@ class nnUNetPredictor(object):
                                                            'constant', {'value': 0}, True,
                                                            None)
                 slicers = self._internal_get_sliding_window_slicers(data.shape[1:])
-
+                # print(str(self.configuration_manager))
+                # try:
+                #     lossFunctionName = self.configuration_manager.lossFunction
+                # except:
+                #     lossFunctionName = "DC_and_Focal_loss" # "defaultLossFunction"
+                # onnxFileName = f"{self.network.__class__.__name__}-{self.configuration_manager.data_identifier}-{lossFunctionName}-1-10-10.onnx"
+                # # # onnxFileName = "UMambaBot-2d.onnx"
+                # netAnalysisPath = netAnalysisDir + onnxFileName
+                # torch.onnx.dynamo_export(self.network,e data, netAnalysisPath)
+                # print("data.shape: ", data.shape)
                 if self.perform_everything_on_device and self.device != 'cpu':
+                    # per https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html
+                    # print("gpu version of onnx would save to ", netAnalysisPath)
+                    # randomTensor = torch.rand((1, 5, 512, 512)).cuda().half()
+                    # self.network.eval()
+                    # # torch_out = self.network(randomTensor)
+                    # torch.onnx.export(self.network, randomTensor, netAnalysisPath, verbose=True, export_params=True, opset_version=15)
+                    # print("onnx saved")
                     # we need to try except here because we can run OOM in which case we need to fall back to CPU as a results device
                     try:
                         predicted_logits = self._internal_predict_sliding_window_return_logits(data, slicers, self.perform_everything_on_device)
@@ -615,12 +684,16 @@ class nnUNetPredictor(object):
                         empty_cache(self.device)
                         predicted_logits = self._internal_predict_sliding_window_return_logits(data, slicers, False)
                 else:
+                    # netAnalysisPath = netAnalysisDir + "cpu-" + onnxFileName
+                    # print("cpu version of onnx would save to ", netAnalysisPath)
                     predicted_logits = self._internal_predict_sliding_window_return_logits(data, slicers, self.perform_everything_on_device)
 
                 empty_cache(self.device)
                 # revert padding
                 predicted_logits = predicted_logits[tuple([slice(None), *slicer_revert_padding[1:]])]
         return predicted_logits
+
+
 
 def predict_entry_point_modelfolder():
     import argparse
@@ -730,6 +803,8 @@ def predict_entry_point():
                              'have the same name as their source images.')
     parser.add_argument('-d', type=str, required=True,
                         help='Dataset with which you would like to predict. You can specify either dataset name or id')
+    parser.add_argument('-lossFunctionSpecifier', type=str, required=False, default="unspecified-loss",
+                    help='String to append to the onnx file name that you use to specify details about the loss function.')
     parser.add_argument('-p', type=str, required=False, default='nnUNetPlans',
                         help='Plans identifier. Specify the plans in which the desired configuration is located. '
                              'Default: nnUNetPlans')
@@ -789,6 +864,9 @@ def predict_entry_point():
 
     args = parser.parse_args()
     args.f = [i if i == 'all' else int(i) for i in args.f]
+
+    global LOSS_FUNCTION_SPECIFIER  # Indicate that we're using the global variable
+    LOSS_FUNCTION_SPECIFIER = args.lossFunctionSpecifier
 
     model_folder = get_output_folder(args.d, args.tr, args.p, args.c)
 

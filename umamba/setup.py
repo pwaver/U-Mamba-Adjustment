@@ -44,6 +44,7 @@ setup(name='nnunetv2',
               'nnUNetv2_train = nnunetv2.run.run_training:run_training_entry',  # api available
               'nnUNetv2_predict_from_modelfolder = nnunetv2.inference.predict_from_raw_data:predict_entry_point_modelfolder',  # api available
               'nnUNetv2_predict = nnunetv2.inference.predict_from_raw_data:predict_entry_point',  # api available
+              'nnUNetv2_predict_with_onnx_export = nnunetv2.inference.predict_from_raw_data_with_onnx_export:predict_entry_point',
               'nnUNetv2_convert_old_nnUNet_dataset = nnunetv2.dataset_conversion.convert_raw_dataset_from_old_nnunet_format:convert_entry_point',  # api available
               'nnUNetv2_find_best_configuration = nnunetv2.evaluation.find_best_configuration:find_best_configuration_entry_point',  # api available
               'nnUNetv2_determine_postprocessing = nnunetv2.postprocessing.remove_connected_components:entry_point_determine_postprocessing_folder',  # api available
