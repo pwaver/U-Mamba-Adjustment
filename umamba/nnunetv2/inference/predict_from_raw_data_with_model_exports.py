@@ -536,6 +536,7 @@ class nnUNetPredictor(object):
         # Generate a dummy input for the export with shape of supplied input
         dummy_input = torch.randn(1, *x.shape[1:], device=x.device)
 
+        # Save as onnx then as torch pth
         # Define the path for the ONNX model
         print("Exporting ONNX model...")
         print(str(self.configuration_manager))
@@ -560,6 +561,9 @@ class nnUNetPredictor(object):
         #                       dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
 
         if self.verbose: print(f"Model exported at {onnx_model_path}")
+        
+        # Save as torch pth
+        torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
      
         if mirror_axes is not None:
             # check for invalid numbers in mirror_axes
