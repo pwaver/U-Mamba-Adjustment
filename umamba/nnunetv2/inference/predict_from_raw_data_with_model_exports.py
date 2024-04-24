@@ -548,11 +548,12 @@ class nnUNetPredictor(object):
         onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
 
         # Export the model
-        torch.onnx.export(self.network, dummy_input, onnx_model_path, 
-                          export_params=True, opset_version=15, 
-                          do_constant_folding=True, verbose=True,
-                          input_names=['input'], output_names=['output'],
-                          dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
+        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+        # torch.onnx.export(self.network, dummy_input, onnx_model_path, 
+        #                   export_params=True, opset_version=15, 
+        #                   do_constant_folding=True, verbose=True,
+        #                   input_names=['input'], output_names=['output'],
+        #                   dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
 
         # torch.onnx.export(self.network, x, onnx_model_path, 
         #                   export_params=True, opset_version=15, 
@@ -563,7 +564,9 @@ class nnUNetPredictor(object):
         if self.verbose: print(f"Model exported at {onnx_model_path}")
         
         # Save as torch pth
-        torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
+        import dill as pickle
+        torch.save(self.network, onnx_model_path.replace('.onnx', '-dill.pth'),pickle_module=pickle)
+        # torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
      
         if mirror_axes is not None:
             # check for invalid numbers in mirror_axes
