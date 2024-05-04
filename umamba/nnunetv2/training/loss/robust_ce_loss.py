@@ -10,20 +10,20 @@ class RobustCrossEntropyLoss(nn.CrossEntropyLoss):
 
     input must be logits, not probabilities!
     """
-    def __init__(self, alpha=None, ignore_index: int = -100, reduction: str = 'mean'):
+    def __init__(self, weight=None, ignore_index: int = -100, reduction: str = 'mean'):
         # Initialize the superclass (nn.CrossEntropyLoss) with the weight, ignore_index, and reduction parameters        
         # Define class weights
-        alpha = torch.tensor([1., 10.0, 10.], dtype=torch.float).cuda()
-        if alpha is not None:
-            if isinstance(alpha, list):
-                self.alpha = torch.tensor(alpha)
-            else:
-                self.alpha = alpha
-        else:
-            self.alpha = None
+        # alpha = torch.tensor([1., 10.0, 10.], dtype=torch.float).cuda()
+        # if weight is not None:
+        #     if isinstance(weight, list):
+        #         self.weight = torch.tensor(weight, device='cuda')
+        #     else:
+        #         self.weight = weight
+        # else:
+        #     self.weight = None
 
-        print("RobustCrossEntropyLoss with class weights (alpha) ", str(alpha))
-        super().__init__(weight=alpha, ignore_index=ignore_index, reduction=reduction)
+        print("RobustCrossEntropyLoss with class weights (weight) ", str(weight))
+        super().__init__(weight=weight, ignore_index=ignore_index, reduction=reduction)
 
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
         if target.ndim == input.ndim:
