@@ -296,6 +296,7 @@ class nnUNetPredictor(object):
             properties_or_list_of_properties = [properties_or_list_of_properties]
 
         num_processes = min(num_processes, len(list_of_images))
+        # print("properties_or_list_of_properties: ", properties_or_list_of_properties)
         pp = preprocessing_iterator_fromnpy(
             list_of_images,
             segs_from_prev_stage_or_list_of_segs_from_prev_stage,

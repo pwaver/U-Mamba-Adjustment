@@ -548,7 +548,8 @@ class nnUNetPredictor(object):
         onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
 
         # Export the model
-        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+        torch.onnx.export(self.network, x, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+        # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
         # torch.onnx.export(self.network, dummy_input, onnx_model_path, 
         #                   export_params=True, opset_version=15, 
         #                   do_constant_folding=True, verbose=True,
@@ -566,6 +567,10 @@ class nnUNetPredictor(object):
         # Save as torch pth
         import dill as pickle
         torch.save(self.network, onnx_model_path.replace('.onnx', '-dill.pth'),pickle_module=pickle)
+        
+        import dill as pickle
+        torch.save(self.network, "/home/billb/github/U-Mamba-Adjustment/data/nets/UMambaEnc-nnUNetPlans_2d-DC_and_CE_loss-dill.pth",pickle_module=pickle)
+        
         # torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
      
         if mirror_axes is not None:
