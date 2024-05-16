@@ -532,7 +532,7 @@ class nnUNetPredictor(object):
 
         # Set the model to evaluation mode
         self.network.eval()
-        self.network.inference_mode()
+        # self.network.
 
         # Generate a dummy input for the export with shape of supplied input
         dummy_input = torch.randn(1, *x.shape[1:], device=x.device)
