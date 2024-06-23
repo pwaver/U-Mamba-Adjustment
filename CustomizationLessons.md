@@ -17,6 +17,8 @@ nnUNetv2_plan_experiment -d 330 -pl CompressionAdjustmentExperimentPlanner -over
 
 This creates a new experiment plan file in json format. The command line program nnUNetv2_plan_experiment places the plan file in its standard place within the file structure under the data directory. In our naming  convention, the 16 refers to the edge length of maximal compression of the encoding. If say the maximal edge in compression is 32 then one would use a name as plans_unet_edge32. If so, then in the instructions below rewrite 16 to 32 in the various plans-related names.
 
+A habit to consider is to append information about the planned loss function to the plans file name. In the example above, the loss function is DC_and_CE_loss-w-1-20-20. This information may be specified in the lossFunctionSpecifier key of the plans file. The risk of error is that the naming of the loss function in the plans file does not match the loss function that is actually used. This is because at this time the plans file is created the loss information is not programmatically propagated to the trainer. So if the loss function is specified in the plans file name, but not in the lossFunctionSpecifier, then the planner will not find the loss function that is actually used.
+
 To do this one observes the creation by the experiment planner a file under nnUNet_preprocessed/Dataset330_Angiography called plans_unet_edge16.json as specified in the call to nnUNetv2_plan_experiment above. The subsequent call to trainer then expects to find this file and furthermore find the training data in the expected location. Note that the directory where it expects to find the 2d data has "_2d" appended to the name, as plans_unet_edge16_2d, illustrated below.
 
 You may find a directory named nnUNetPlans_2d that has the training data under it. A quick an dirty step is to rename the directory nnUNetPlans_2d to plans_unet_edge16_2d.
@@ -44,7 +46,7 @@ To train and later to predict, the plans file needs to be included under the par
 
 With the above set up, the training program command line call is something like:
 
-nnUNetv2_train 330 2d 1 -tr nnUNetTrainer -p plans_unet_edge4_features256
+nnUNetv2_train 330 2d 1 -tr  -p plans_unet_edge4_features256
 
 If get torch.cuda.OutOfMemoryError, then the batch size needs to be reduced. This may be done in the plans file plans_unet_edge16.json. The batch size is specified in the plans file under the key "batch_size". Reducing the batch size will reduce the memory required for the model.
 
