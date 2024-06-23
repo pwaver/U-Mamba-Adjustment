@@ -288,8 +288,12 @@ class nnUNetTrainer(object):
         should be generated. label_manager takes care of all that for you.)
 
         """
-        return get_network_from_plans(plans_manager, dataset_json, configuration_manager,
+        model = get_network_from_plans(plans_manager, dataset_json, configuration_manager,
                                       num_input_channels, deep_supervision=enable_deep_supervision)
+        print("About to compile model")
+        model = torch.compile(model)
+        print("Model compiled")
+        return model
 
     def _get_deep_supervision_scales(self):
         if self.enable_deep_supervision:
