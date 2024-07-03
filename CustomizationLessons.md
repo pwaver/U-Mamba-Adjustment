@@ -13,7 +13,7 @@ class CompressionAdjustmentExperimentPlanner(ExperimentPlanner):
 
 Then one specifies this experiment planner class in a call to the command line program that plans the experiment (this is nnUNet terminology for designing the nnUNet structure), nnUNetv2_plan_experiment. The name of the experiment planner class is passed via a parameter -pl. The generated plan name is specified via parameter -overwrite_plans_name.
 
-nnUNetv2_plan_experiment -d 330 -pl CompressionAdjustmentExperimentPlanner -overwrite_plans_name plans_unet_edge16
+nnUNetv2_plan_experiment -d 330 -pl CompressionAdjustmentExperimentPlanner -overwrite_plans_name plans_unet_edge8
 
 This creates a new experiment plan file in json format. The command line program nnUNetv2_plan_experiment places the plan file in its standard place within the file structure under the data directory. In our naming  convention, the 16 refers to the edge length of maximal compression of the encoding. If say the maximal edge in compression is 32 then one would use a name as plans_unet_edge32. If so, then in the instructions below rewrite 16 to 32 in the various plans-related names.
 
@@ -46,9 +46,9 @@ To train and later to predict, the plans file needs to be included under the par
 
 With the above set up, the training program command line call is something like:
 
-nnUNetv2_train 330 2d 1 -tr  -p plans_unet_edge4_features256
+nnUNetv2_train 330 2d 1 -tr nnUNetTrainerUMambaBot -p plans_unet_edge4_features256
 
-If get torch.cuda.OutOfMemoryError, then the batch size needs to be reduced. This may be done in the plans file plans_unet_edge16.json. The batch size is specified in the plans file under the key "batch_size". Reducing the batch size will reduce the memory required for the model.
+The "-tr" parameter specifies the trainer class. In this example case, it is nnUNetTrainerUMambaBot. If get torch.cuda.OutOfMemoryError, then the batch size needs to be reduced. This may be done in the plans file plans_unet_edge16.json. The batch size is specified in the plans file under the key "batch_size". Reducing the batch size will reduce the memory required for the model.
 
 The prediction call is something like:
 
@@ -56,8 +56,23 @@ nnUNetv2_predict -i path-to-input-folder -o path-to-output-folder -d 330 -c 2d -
 
 check:
 
-nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output  -d 330  -c 2d -tr nnUNetTrainerUMambaBot  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20 -p plans_unet_edge32
+nnUNetv2_predict_with_model_exports -i /home/ubuntu/U-Mamba-Adjustment/data/nnUNet_input -o /home/ubuntu/U-Mamba-Adjustment/data/nnUNet_output  -d 330  -c 2d -tr nnUNetTrainerUMambaBot  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20 -p plans_unet_edge8
 
+The U-Mamba distribution contains a path at nnunetv2/nets that contains models for inference that are brought in with restoration by dill. For example, we have
+
+$ ls /home/ubuntu/U-Mamba-Adjustment/umamba/nnunetv2/nets
+EMUNet.py  UMambaBot_2d.py  UMambaBot_3d.py  UMambaEnc_2d.py  UMambaEnc_3d.py
+
+At inference, we need to add the path to the nnunetv2/nets directory to the PYTHONPATH environment variable . This is done by adding the following to the .bashrc file:
+
+export PYTHONPATH="${PYTHONPATH}:/home/ubuntu/U-Mamba-Adjustment/umamba/nnunetv2/nets"
+
+or by amending the python path within the interpreter, as 
+
+import sys
+sys.path.append("/home/ubuntu/U-Mamba-Adjustment/umamba/nnunetv2/nets")
+
+This may require cuda per se and not run on mps since mamba-ssm is cuda-dependent.
 
 BTW, an alternate strategy to conserve GPU RAM is to boot not into the GUI when training. So as follows:
 

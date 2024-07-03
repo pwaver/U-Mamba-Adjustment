@@ -290,9 +290,9 @@ class nnUNetTrainer(object):
         """
         model = get_network_from_plans(plans_manager, dataset_json, configuration_manager,
                                       num_input_channels, deep_supervision=enable_deep_supervision)
-        print("About to compile model")
-        model = torch.compile(model)
-        print("Model compiled")
+        # print("About to compile model")
+        # model = torch.compile(model)
+        # print("Model compiled")
         return model
 
     def _get_deep_supervision_scales(self):
@@ -366,7 +366,7 @@ class nnUNetTrainer(object):
             # loss = DC_and_Focal_loss({'batch_dice': self.configuration_manager.batch_dice,
             #                        'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'alpha':[1.,10.,10.]}, weight_ce=1, weight_dice=1,
             #                       ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
-            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'weight':torch.tensor([1., 20., 50.], device='cuda')}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
+            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'weight':torch.tensor([1., 20., 20.], device='cuda')}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
             # loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
 
 

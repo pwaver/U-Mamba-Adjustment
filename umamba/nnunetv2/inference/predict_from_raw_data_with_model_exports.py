@@ -526,7 +526,8 @@ class nnUNetPredictor(object):
         # Exploit here for onnx export
 
         # Define the directory for saving the ONNX model
-        netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
+        # netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
+        netAnalysisDir = "/home/ubuntu/U-Mamba-Adjustment/data/nets/"
         # onnx_model_dir = os.path.join(netAnalysisDir, "onnx_models")
         # os.makedirs(onnx_model_dir, exist_ok=True)
 
@@ -565,12 +566,20 @@ class nnUNetPredictor(object):
 
         if self.verbose: print(f"Model exported at {onnx_model_path}")
         
+        pthModelPath = onnx_model_path.replace('.onnx', '-dill.pth')
+        print(f"About to export dill pth {pthModelPath}")
         # Save as torch pth
         import dill as pickle
-        torch.save(self.network, onnx_model_path.replace('.onnx', '-dill.pth'),pickle_module=pickle)
+        torch.save(self.network, pthModelPath, pickle_module=pickle)
         
-        import dill as pickle
-        torch.save(self.network, "/home/billb/github/U-Mamba-Adjustment/data/nets/UMambaEnc-nnUNetPlans_2d-DC_and_CE_loss-dill.pth",pickle_module=pickle)
+        # Save as torch script JIT
+        torchScriptModelPath = onnx_model_path.replace('.onnx', '-torchscript-traced.pt')
+        print(f"About to export torchscript pth {torchScriptModelPath}")
+        traced_model = torch.jit.trace(self.network, x)
+        traced_model.save(torchScriptModelPath)
+        # scripted_model = torch.jit.script(self.network)
+        # scripted_model.save(torchScriptModelPath)
+        # torch.jit.save(self.network, torchScriptModelPath)
         
         # torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
      

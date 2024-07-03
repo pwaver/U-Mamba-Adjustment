@@ -552,7 +552,7 @@ class CompressionAdjustmentExperimentPlanner(ExperimentPlanner):
         self.UNet_reference_val_corresp_bs_2d = 12
         self.UNet_reference_val_corresp_bs_3d = 2
         self.UNet_vram_target_GB = gpu_memory_target_in_gb
-        self.UNet_featuremap_min_edge_length = 32 # WATCHME alter to modify network depth
+        self.UNet_featuremap_min_edge_length = 8 # WATCHME alter to modify network depth
         self.UNet_blocks_per_stage_encoder = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
         self.UNet_blocks_per_stage_decoder = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
         self.UNet_min_batch_size = 2
