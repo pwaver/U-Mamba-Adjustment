@@ -123,3 +123,4 @@ ENV/
 
 *.model
 
+umamba/=1.2.0
