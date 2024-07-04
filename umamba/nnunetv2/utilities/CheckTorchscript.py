@@ -58,15 +58,19 @@ dillModelPath="/home/ubuntu/onnx-nets/UMambaBot-plans_unet_edge8_2d-DC_and_CE_lo
 
 dillModel = torch.load(dillModelPath)
 
-print(dillModel)
+# print(dillModel)
 
+dillModel.eval()
 dillModel = dillModel.to(device)
+dillModel = torch.compile(dillModel)
 
 random_tensor = torch.randn(1, 5, 512, 512)
 random_tensor.shape
 random_tensor = random_tensor.to(device)
 
-result = dillModel(random_tensor)
+with torch.inference_mode():
+    result = dillModel(random_tensor)
+
 result.shape
 
 # Test torschscript traced model import and infer
@@ -103,7 +107,7 @@ random_tensor = random_tensor.to(device)
 result = modelPerOnnx(random_tensor)
 result.shape
 
-# Scripted does not work
+# Scripted does not work:
 scriptedModelperOnnx = torch.jit.script(modelPerOnnx)
 scripted_model.save("/home/ubuntu/U-Mamba-Adjustment/data/nets/UMambaBot-plans_unet_edge8_2d-DC_and_CE_loss-w-1-20-20-torchscript.pt")
 

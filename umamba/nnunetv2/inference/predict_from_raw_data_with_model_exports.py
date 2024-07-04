@@ -571,12 +571,13 @@ class nnUNetPredictor(object):
         # Save as torch pth
         import dill as pickle
         torch.save(self.network, pthModelPath, pickle_module=pickle)
-        
+
+        # On 3 Jul 2024 torch script and JIT exports do not work.        
         # Save as torch script JIT
-        torchScriptModelPath = onnx_model_path.replace('.onnx', '-torchscript-traced.pt')
-        print(f"About to export torchscript pth {torchScriptModelPath}")
-        traced_model = torch.jit.trace(self.network, x)
-        traced_model.save(torchScriptModelPath)
+        # torchScriptModelPath = onnx_model_path.replace('.onnx', '-torchscript-traced.pt')
+        # print(f"About to export torchscript pth {torchScriptModelPath}")
+        # traced_model = torch.jit.trace(self.network, x)
+        # traced_model.save(torchScriptModelPath)
         # scripted_model = torch.jit.script(self.network)
         # scripted_model.save(torchScriptModelPath)
         # torch.jit.save(self.network, torchScriptModelPath)
