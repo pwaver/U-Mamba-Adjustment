@@ -144,7 +144,7 @@ class nnUNetTrainer(object):
         self.oversample_foreground_percent = 0.33
         self.num_iterations_per_epoch = 250
         self.num_val_iterations_per_epoch = 50
-        self.num_epochs = 1000
+        self.num_epochs = 250 # WATCHME alter to modify max epochs default is 1000
         self.current_epoch = 0
         self.enable_deep_supervision = True
 
@@ -352,7 +352,9 @@ class nnUNetTrainer(object):
 
     def _build_loss(self):
         # print("{self.__class__.__name__} loss function per configuration manager: ", self.configuration_manager.lossFunction)
-        classWeights = torch.tensor([1., 10., 10.])
+        classWeights = torch.tensor([1., 20., 20.])
+        # move classWeights to the device
+        # classWeights = classWeights.to(self.device)
         if self.label_manager.has_regions:
             loss = DC_and_BCE_loss({},
                                    {'batch_dice': self.configuration_manager.batch_dice,
@@ -366,7 +368,7 @@ class nnUNetTrainer(object):
             # loss = DC_and_Focal_loss({'batch_dice': self.configuration_manager.batch_dice,
             #                        'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'alpha':[1.,10.,10.]}, weight_ce=1, weight_dice=1,
             #                       ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
-            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'weight':torch.tensor([1., 20., 20.], device='cuda')}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
+            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {'weight':classWeights.to(self.device)}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
             # loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice, 'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {}, weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label, dice_class=MemoryEfficientSoftDiceLoss)
 
 

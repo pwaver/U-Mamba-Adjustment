@@ -29,7 +29,7 @@ class nnUNetTrainerUNETR(nnUNetTrainerNoDeepSupervision):
         self.initial_lr = 1e-4
         self.grad_scaler = None
         self.weight_decay = 0.01
-
+        
     @staticmethod
     def build_network_architecture(plans_manager: PlansManager,
                                    dataset_json,
