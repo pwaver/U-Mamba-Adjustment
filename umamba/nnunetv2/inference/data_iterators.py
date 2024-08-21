@@ -38,7 +38,13 @@ def preprocess_fromfiles_save_to_queue(list_of_lists: List[List[str]],
                 seg_onehot = convert_labelmap_to_one_hot(seg[0], label_manager.foreground_labels, data.dtype)
                 data = np.vstack((data, seg_onehot))
 
-            data = torch.from_numpy(data).contiguous().float()
+#https://discuss.pytorch.org/t/why-do-i-get-typeerror-expected-np-ndarray-got-numpy-ndarray-when-i-use-torch-from-numpy-function/37525/3
+            print(type(data))
+            print(data.dtype)
+            print(data.shape)
+            data = data.astype(np.float32)
+            data = torch.as_tensor(np.array(data).astype('float'))
+            # data = torch.from_numpy(data).contiguous().float()
 
             item = {'data': data, 'data_properties': data_properties,
                     'ofile': output_filenames_truncated[idx] if output_filenames_truncated is not None else None}

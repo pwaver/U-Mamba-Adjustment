@@ -17,7 +17,9 @@ def compute_gaussian(tile_size: Union[Tuple[int, ...], List[int]], sigma_scale: 
     tmp[tuple(center_coords)] = 1
     gaussian_importance_map = gaussian_filter(tmp, sigmas, 0, mode='constant', cval=0)
 
-    gaussian_importance_map = torch.from_numpy(gaussian_importance_map)
+    gaussian_importance_map = torch.as_tensor(np.array(gaussian_importance_map).astype('float'))
+
+    # gaussian_importance_map = torch.from_numpy(gaussian_importance_map)
 
     gaussian_importance_map = gaussian_importance_map / torch.max(gaussian_importance_map) * value_scaling_factor
     gaussian_importance_map = gaussian_importance_map.type(dtype).to(device)

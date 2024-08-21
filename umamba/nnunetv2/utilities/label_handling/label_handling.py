@@ -130,12 +130,13 @@ class LabelManager(object):
         """
         logits has to have shape (c, x, y(, z)) where c is the number of classes/regions
         """
-        if isinstance(logits, np.ndarray):
-            logits = torch.from_numpy(logits)
+        # if isinstance(logits, np.ndarray):
+        #     # logits = torch.from_numpy(logits)
+        #     logits = torch.as_tensor(logits)
 
         with torch.no_grad():
             # softmax etc is not implemented for half
-            logits = logits.float()
+            logits = torch.as_tensor(logits).float()
             probabilities = self.inference_nonlin(logits)
 
         return probabilities
