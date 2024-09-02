@@ -534,13 +534,23 @@ class nnUNetPredictor(object):
         # Set the model to evaluation mode
         self.network.eval()
         # self.network.
+        # Disable gradients for all model parameters
+        for param in self.network.parameters():
+            param.requires_grad = False
+
+        def set_module_to_eval(module):
+            if isinstance(module, torch.nn.Module):
+                module.eval()
+
+        # Apply this function to all submodules
+        self.network.apply(set_module_to_eval)
 
         # Generate a dummy input for the export with shape of supplied input
-        dummy_input = torch.randn(1, *x.shape[1:], device=x.device)
+        dummy_input = torch.randn(1, *x.shape[1:], device=x.device, dtype=torch.float32)
 
         # Save as onnx then as torch pth
         # Define the path for the ONNX model
-        print("Exporting ONNX model...")
+        print("Exporting ONNX model for data shape:", dummy_input.shape)
         print(str(self.configuration_manager))
         try:
             lossFunctionName = self.configuration_manager.lossFunction
@@ -550,13 +560,15 @@ class nnUNetPredictor(object):
         onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
 
         # Export the model
-        torch.onnx.export(self.network, x, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], training=torch.onnx.TrainingMode.EVAL)
+
+        # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}, training=torch.onnx.TrainingMode.EVAL)
         # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
         # torch.onnx.export(self.network, dummy_input, onnx_model_path, 
         #                   export_params=True, opset_version=15, 
         #                   do_constant_folding=True, verbose=True,
         #                   input_names=['input'], output_names=['output'],
-        #                   dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
+        #                   dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}, training=torch.onnx.TrainingMode.EVAL)
 
         # torch.onnx.export(self.network, x, onnx_model_path, 
         #                   export_params=True, opset_version=15, 
@@ -574,13 +586,16 @@ class nnUNetPredictor(object):
 
         # On 3 Jul 2024 torch script and JIT exports do not work.        
         # Save as torch script JIT
-        # torchScriptModelPath = onnx_model_path.replace('.onnx', '-torchscript-traced.pt')
         # print(f"About to export torchscript pth {torchScriptModelPath}")
-        # traced_model = torch.jit.trace(self.network, x)
-        # traced_model.save(torchScriptModelPath)
+        # torchScriptModelPath = onnx_model_path.replace('.onnx', '-torchscript-onnx.pt')
         # scripted_model = torch.jit.script(self.network)
         # scripted_model.save(torchScriptModelPath)
-        # torch.jit.save(self.network, torchScriptModelPath)
+        # torchJitModelPath = onnx_model_path.replace('.onnx', '-torchjit-onnx.pt')
+        # print(f"About to export torch jit pt {torchJitModelPath}")
+        # with torch.inference_mode():
+        #     traced_model = torch.jit.trace(self.network, x)
+        #     traced_model.save(torchJitModelPath)
+        #     torch.jit.save(self.network, torchJitModelPath)
         
         # torch.save(self.network, onnx_model_path.replace('.onnx', '.pth'))
      

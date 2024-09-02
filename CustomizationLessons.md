@@ -95,3 +95,8 @@ then afterward go back to GUI mode
      sudo reboot
 or
 	sudo systemctl start gdm3
+
+
+By the way, in the onnx export call we wish to specify the input shape and further that the first dimension is the batch size. This is done as follows:
+
+onnx.export(netModel, dummy_input, "model.onnx", verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input' : {0 : 'batch_size'}, 'output' : {0 : 'batch_size'}})
