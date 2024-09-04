@@ -521,7 +521,7 @@ class nnUNetPredictor(object):
 
     def _internal_maybe_mirror_and_predict(self, x: torch.Tensor) -> torch.Tensor:
         mirror_axes = self.allowed_mirroring_axes if self.use_mirroring else None
-        prediction = self.network(x)
+        prediction = self.network(x.half())
         
         # Exploit here for onnx export
 
@@ -560,10 +560,16 @@ class nnUNetPredictor(object):
         onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
 
         # Export the model
-        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], training=torch.onnx.TrainingMode.EVAL)
+        # torch.onnx.export(self.network, dummy_input, onnx_model_path, do_constant_folding=True, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], training=torch.onnx.TrainingMode.EVAL)
 
-        # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}, training=torch.onnx.TrainingMode.EVAL)
-        # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+        print("Exporting ONNX model")
+        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, do_constant_folding=True, verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}, training=torch.onnx.TrainingMode.EVAL)
+        
+        # print("Exporting ONNX model with torch.onnx.dynamo_export")
+        # dynamoModel = torch.onnx.dynamo_export(self.network,dummy_input)
+        # dynamoModel.save(onnx_model_path.replace('.onnx', '-dynamo.onnx'))
+
+        # torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, do_constant_folding=True, verbose=True)
         # torch.onnx.export(self.network, dummy_input, onnx_model_path, 
         #                   export_params=True, opset_version=15, 
         #                   do_constant_folding=True, verbose=True,

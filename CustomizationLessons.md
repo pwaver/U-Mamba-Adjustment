@@ -100,3 +100,47 @@ or
 By the way, in the onnx export call we wish to specify the input shape and further that the first dimension is the batch size. This is done as follows:
 
 onnx.export(netModel, dummy_input, "model.onnx", verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input' : {0 : 'batch_size'}, 'output' : {0 : 'batch_size'}})
+
+
+## **Export to PyTorch**
+
+We wish to export the model to PyTorch for consideration of deployment in the AWI cloud. There are several steps involved and not all of the program environments are compatible with one another.
+
+### **Export to ONNX**
+
+We start with the export to ONNX from within the nnunetv2 or umamba workspaces. As of this writing 3 Sep 2024, umamba seems to train best with the umamba conda environment not having the most recent PyTorch versions. For export, however, we need a more recent PyTorch. So we need to create a new conda environment for export, umamba-upgrade. 
+
+To export for Wolfram, we seem to need to use the umamba conda environment with the line
+torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=18, do_constant_folding=True, verbose=True)
+in the method _internal_maybe_mirror_and_predict of the file predict_from_raw_data_with_model_exports.py.
+The specification of dynamic axes seems to confuse Wolfram import, so we need to remove that.
+
+### **From ONNX to PyTorch**
+
+We wish to export to PyTorch as a stage for deploying to the AWI cloud, which is PyTorch based. This seems to require the umamba-upgrade conda environment, having the most recent PyTorch, 2.4.0 at this writing. The downstream onnx import prefers opset 15 to 18. It is able to make use of dynamic axes. We seem to need to export with the line        torch.onnx.export(self.network, dummy_input, onnx_model_path, export_params=True, opset_version=15, do_constant_folding=True, verbose=True, input_names=['input'], output_names=['output'], dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}, training=torch.onnx.TrainingMode.EVAL)
+in the method _internal_maybe_mirror_and_predict of the file predict_from_raw_data_with_model_exports.py.
+
+As an aside, as noted above, from within the umamba-upgrade conda environment, the command line program is as this example:
+nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output  -d 332  -c 2d -tr nnUNetTrainerUMambaBot  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20 -p plans_unet_edge8_epochs250
+
+This generates a file named nnUNetTrainerUMambaBot_2d_332_plans_unet_edge8_epochs250_DC_and_CE_loss-w-1-20-20.onnx in the output directory, here /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output. By our internal convention, the onnx file is copied to the net model archive directory as per the python code rootPath = '/mnt/SliskiDrive/AWI/AWIBuffer/' if os.name == 'posix' else '/Volumes/Crucial X8/AWI/Data/'. This is the directory where later python and Wolfram code looks for the model.
+
+We wish a PyTorch version of the model that is self-contained. Options for this seem to be with the onnx framework, which seems to work, and the PyTorch jit and torchscript frameworks, which do not seem to work. They do not work in the sense that they are not aware that the 1st dimension of the input is the batch size. The onnx framework seems to know it, so our roundabout strategy is to export to onnx then import and convert it to a PyTorch version. At this time we do this with the program OnnxToTorchscript.py in the nnunetv2/utilities directory. We run this in the umamba-upgrade conda environment.
+
+Then we apply the onnx-derived PyTorch model to the data, again in the umamba-upgrade conda environment. It seems to need the latest PyTorch for both creation and use.
+
+The following causes a segmentation fault:
+
+We get a PyTorch copy of the onnx model, adjust the file name to specify provenance, and save it with the lines
+
+rootPath = '/mnt/SliskiDrive/AWI/AWIBuffer/' if os.name == 'posix' else '/Volumes/Crucial X8/AWI/Data/'
+
+onnxPath = rootPath + "UMambaBot-plans_unet_edge8_epochs250_2d-DC_and_CE_loss-w-1-20-20.onnx"
+
+modelPerOnnx = convert(onnxPath)
+
+torchModelPath = onnxPath.replace(".onnx", "-torch-onnx.pt")
+
+torch.save(modelPerOnnx, torchModelPath)
+
+These onnx and torch models seem to understand the batch size as the first dimension.
