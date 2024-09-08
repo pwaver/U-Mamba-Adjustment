@@ -61,6 +61,10 @@ The prediction call is something like:
 
 nnUNetv2_predict -i path-to-input-folder -o path-to-output-folder -d 332 -c 2d -tr nnUNetTrainer —disable_tta -f 1 -p plans_unet_edge16 -chk checkpoint_best.pth
 
+or, for a a 3d model wtih data identifier 430, fold 1, and default plans and loss function:
+
+nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input_3d -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output_3d -d 430 -c 3d_fullres -tr nnUNetTrainer -f 1 
+
 check:
 
 nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output  -d 332  -c 2d -tr nnUNetTrainerUMambaBot  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20 -p plans_unet_edge8_epochs250
