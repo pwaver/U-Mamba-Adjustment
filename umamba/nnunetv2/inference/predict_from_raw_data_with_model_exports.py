@@ -526,8 +526,8 @@ class nnUNetPredictor(object):
         # Exploit here for onnx export
 
         # Define the directory for saving the ONNX model
-        netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
-        # netAnalysisDir = "/home/ubuntu/U-Mamba-Adjustment/data/nets/"
+        # netAnalysisDir = "/home/billb/github/U-Mamba-Adjustment/data/nets/"
+        netAnalysisDir = "/home/ubuntu/U-Mamba-Adjustment/data/nets/"
         # onnx_model_dir = os.path.join(netAnalysisDir, "onnx_models")
         # os.makedirs(onnx_model_dir, exist_ok=True)
 
@@ -558,6 +558,12 @@ class nnUNetPredictor(object):
             lossFunctionName =  LOSS_FUNCTION_SPECIFIER # "DC_and_Focal_loss" #
         onnxFileName = f"{self.network.__class__.__name__}-{self.configuration_manager.data_identifier}-{lossFunctionName}.onnx" # WATCHME confirm class weights
         onnx_model_path = os.path.join(netAnalysisDir, onnxFileName)
+        
+        pthModelPath = onnx_model_path.replace('.onnx', '-dill.pth')
+        print(f"Exporting dill pth {pthModelPath}")
+        # Save as torch pth
+        import dill as pickle
+        torch.save(self.network, pthModelPath, pickle_module=pickle)
 
         # Export the model
         # torch.onnx.export(self.network, dummy_input, onnx_model_path, do_constant_folding=True, export_params=True, opset_version=18, verbose=True, input_names=['input'], output_names=['output'], training=torch.onnx.TrainingMode.EVAL)
@@ -584,12 +590,6 @@ class nnUNetPredictor(object):
 
         if self.verbose: print(f"Model exported at {onnx_model_path}")
         
-        pthModelPath = onnx_model_path.replace('.onnx', '-dill.pth')
-        print(f"About to export dill pth {pthModelPath}")
-        # Save as torch pth
-        import dill as pickle
-        torch.save(self.network, pthModelPath, pickle_module=pickle)
-
         # On 3 Jul 2024 torch script and JIT exports do not work.        
         # Save as torch script JIT
         # print(f"About to export torchscript pth {torchScriptModelPath}")

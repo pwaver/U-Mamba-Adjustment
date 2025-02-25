@@ -144,7 +144,7 @@ class nnUNetTrainer(object):
         self.oversample_foreground_percent = 0.33
         self.num_iterations_per_epoch = 250
         self.num_val_iterations_per_epoch = 50
-        self.num_epochs = 250 # WATCHME alter to modify max epochs default is 1000
+        self.num_epochs = 1000 # WATCHME alter to modify max epochs default is 1000
         self.current_epoch = 0
         self.enable_deep_supervision = True
 
@@ -352,7 +352,7 @@ class nnUNetTrainer(object):
 
     def _build_loss(self):
         # print("{self.__class__.__name__} loss function per configuration manager: ", self.configuration_manager.lossFunction)
-        classWeights = torch.tensor([1., 20., 20.])
+        classWeights = torch.tensor([1., 10., 10.])
         # move classWeights to the device
         # classWeights = classWeights.to(self.device)
         if self.label_manager.has_regions:
@@ -725,11 +725,11 @@ class nnUNetTrainer(object):
         if do_dummy_2d_data_aug:
             tr_transforms.append(Convert2DTo3DTransform())
 
-        tr_transforms.append(GaussianNoiseTransform(p_per_sample=0.1))
-        tr_transforms.append(GaussianBlurTransform((0.5, 1.), different_sigma_per_channel=True, p_per_sample=0.2,
+        tr_transforms.append(GaussianNoiseTransform( p_per_sample=0.1))
+        tr_transforms.append(GaussianBlurTransform((0.5, 21), different_sigma_per_channel=True, p_per_sample=0.2,
                                                    p_per_channel=0.5))
         tr_transforms.append(BrightnessMultiplicativeTransform(multiplier_range=(0.75, 1.25), p_per_sample=0.15))
-        tr_transforms.append(ContrastAugmentationTransform(p_per_sample=0.15))
+        tr_transforms.append(ContrastAugmentationTransform(contrast_range=(0.75, 1.25), p_per_sample=0.15))
         tr_transforms.append(SimulateLowResolutionTransform(zoom_range=(0.5, 1), per_channel=True,
                                                             p_per_channel=0.5,
                                                             order_downsample=0, order_upsample=3, p_per_sample=0.25,

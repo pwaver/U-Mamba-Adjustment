@@ -2,7 +2,7 @@
 import torch
 import dill as pickle
 
-model_path = "/home/billb/github/U-Mamba-Adjustment/data/nets/UMambaEnc-nnUNetPlans_2d-DC_and_CE_loss-dill.pth"
+model_path = "/home/ubuntu/U-Mamba-Adjustment/data/nets/UXlstmBot-nnUNetPlans_2d-DC_and_CE_loss-w-1-20-20-dill.pth"
 model = torch.load(model_path, pickle_module=pickle)
 
 model.eval()
@@ -41,12 +41,13 @@ try:
 except Exception as e:
     print(f"Error occurred: {e}")
 
-onnx_model_path = "/home/billb/github/U-Mamba-Adjustment/data/nets/UMambaEnc-nnUNetPlans_2d-DC_and_CE_loss.onnx"
+onnx_model_path = model_path.replace('.pth', '.onnx')
 
 
 if torch.cuda.is_available():
     model = model.cuda()  # Ensure model is on GPU
     dummy_input = dummy_input.to('cuda')  # Move input tensor to GPU
 
-torch.onnx.export(model, dummy_input, onnx_model_path, export_params=True, opset_version=15, verbose=True)
+torch.onnx.export(model, dummy_input, onnx_model_path, export_params=True, do_constant_folding=True, opset_version=15, verbose=True)
 
+torch.onnx.export(model, dummy_input, onnx_model_path, export_params=True, verbose=True)
