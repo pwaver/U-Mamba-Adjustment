@@ -11,6 +11,9 @@ export nnUNet_raw="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_raw"
 export nnUNet_preprocessed="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_preprocessed"
 export nnUNet_results="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_results"
 
+Sometimes you need to add
+export PYTHONPATH="/home/ubuntu/nnUNet-Adjustment:$PYTHONPATH"
+
 I think these can be snuck into the conda environment. Execute conda env list to find the conda environments and their paths. Go to the environment that has nnUNet installed and look for etc/conda/activate.d. There you will create or find a file called env_vars.sh. Open it and place the export statements into it.
 
 The first step is to check the data integrity with a call such as 
