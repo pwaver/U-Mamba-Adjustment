@@ -14,6 +14,9 @@ export nnUNet_results="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_results"
 Sometimes you need to add
 export PYTHONPATH="/home/ubuntu/nnUNet-Adjustment:$PYTHONPATH"
 
+On an occasion, I needed to fix a cuda error with
+sudo ln -s /usr/lib/x86_64-linux-gnu/libcuda.so.1 /usr/lib/x86_64-linux-gnu/libcuda.so
+
 I think these can be snuck into the conda environment. Execute conda env list to find the conda environments and their paths. Go to the environment that has nnUNet installed and look for etc/conda/activate.d. There you will create or find a file called env_vars.sh. Open it and place the export statements into it.
 
 The first step is to check the data integrity with a call such as 
@@ -72,11 +75,13 @@ nnUNetv2_predict -i path-to-input-folder -o path-to-output-folder -d 332 -c 2d -
 
 or, for a a 3d model wtih data identifier 430, fold 1, and default plans and loss function:
 
-nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input_3d -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output_3d -d 430 -c 3d_fullres -tr nnUNetTrainer -f 1 
+nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input_3d -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output_3d -d 332 -c 2d -tr nnUNetTrainer -f all
 
 check:
 
 nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output  -d 332  -c 2d -tr nnUNetTrainerUMambaBot  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20 -p plans_unet_edge8_epochs250
+
+nnUNetv2_predict_with_model_exports -i /home/billb/github/U-Mamba-Adjustment/data/nnUNet_input -o /home/billb/github/U-Mamba-Adjustment/data/nnUNet_output  -d 332  -c 2d -tr nnUNetTrainer  --disable_tta -f all -lossFunctionSpecifier DC_and_CE_loss-w-1-20-20
 
 The U-Mamba distribution contains a path at nnunetv2/nets that contains models for inference that are brought in with restoration by dill. For example, we have
 
