@@ -25,7 +25,7 @@ nnUNetv2_plan_and_preprocess -d 332  --verify_dataset_integrity
 
 First step is to create a new experiment planner this can inherit from the class ExperimentPlanner that is in the file default_experiment_planner.py. In this example, the inheritance class is called CompressionAdjustmentExperimentPlanner. The constructor has a call to super.__init__(….) as below and has within it a new reference value and a new value for min edge length.
 
-We can limit the number of epochs by adding a new parameter to the constructor nnUNetTrainer, self.max_num_epochs=250. This is done in the file nnUNetTrainer.py. Watchout for the confusion since the adjustments to the training are specified in two files, nnUNetTrainer.py and ExperimentPlanner.py.
+We can limit the number of epochs by adding a new parameter to the constructor nnUNetTrainer, self.max_num_epochs=250. This is done in the file nnUNetTrainer.py. Depending on nnunetv2 version, the parameter may be named num_epochs or max_num_epochs. Watchout for the confusion since the adjustments to the training are specified in two files, nnUNetTrainer.py and ExperimentPlanner.py.
 
 In default_experiment_planner.py we have
 
