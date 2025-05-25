@@ -5,7 +5,7 @@ export nnUNet_raw="/billb/github/nnUNet-Adjustment/data/nnUNet_raw"
 export nnUNet_preprocessed="/billb/github/nnUNet-Adjustment/data/nnUNet_preprocessed"
 export nnUNet_results="/billb/github/nnUNet-Adjustment/data/nnUNet_results"
 
-of
+or
 
 export nnUNet_raw="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_raw"
 export nnUNet_preprocessed="/home/ubuntu/nnUNet-Adjustment/data/nnUNet_preprocessed"
