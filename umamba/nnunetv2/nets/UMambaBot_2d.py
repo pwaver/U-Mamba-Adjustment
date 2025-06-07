@@ -48,7 +48,7 @@ class MambaLayer(nn.Module):
                 expand=expand,    # Block expansion factor
         )
     
-    @autocast(enabled=False)
+    @autocast(device_type='cuda', enabled=False)
     def forward(self, x):
         if x.dtype == torch.float16:
             x = x.type(torch.float32)

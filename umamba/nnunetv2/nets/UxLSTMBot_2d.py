@@ -47,7 +47,7 @@ class ViLLayer(nn.Module):
             direction=SequenceTraversal.ROWWISE_FROM_TOP_LEFT
         )
     
-    @autocast(enabled=False)
+    @autocast(device_type='cuda', enabled=False)
     def forward(self, x):
         if x.dtype == torch.float16:
             x = x.type(torch.float32)
