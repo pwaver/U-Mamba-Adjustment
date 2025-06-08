@@ -17,7 +17,7 @@ from dynamic_network_architectures.initialization.weight_init import init_last_b
 from nnunetv2.utilities.network_initialization import InitWeights_He
 from mamba_ssm import Mamba
 from dynamic_network_architectures.building_blocks.helper import maybe_convert_scalar_to_list, get_matching_pool_op
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from dynamic_network_architectures.building_blocks.residual import BasicBlockD
 
 class UpsampleLayer(nn.Module):
@@ -51,7 +51,7 @@ class MambaLayer(nn.Module):
                 expand=expand,    # Block expansion factor
         )
     
-    @autocast(device_type='cuda', enabled=False)
+    @autocast('cuda', enabled=False)
     def forward(self, x):
         if x.dtype == torch.float16:
             x = x.type(torch.float32)

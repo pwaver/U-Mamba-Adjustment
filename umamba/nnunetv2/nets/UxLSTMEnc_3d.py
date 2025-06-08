@@ -16,7 +16,7 @@ from dynamic_network_architectures.building_blocks.helper import get_matching_in
 from dynamic_network_architectures.initialization.weight_init import init_last_bn_before_add_to_0
 from nnunetv2.utilities.network_initialization import InitWeights_He
 from dynamic_network_architectures.building_blocks.helper import maybe_convert_scalar_to_list, get_matching_pool_op
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from dynamic_network_architectures.building_blocks.residual import BasicBlockD
 from .vision_lstm import ViLBlock, SequenceTraversal
 
@@ -74,7 +74,7 @@ class ViLLayer(nn.Module):
 
         return out
 
-    @autocast(device_type='cuda', enabled=False)
+    @autocast('cuda', enabled=False)
     def forward(self, x):
         if x.dtype == torch.float16:
             x = x.type(torch.float32)
