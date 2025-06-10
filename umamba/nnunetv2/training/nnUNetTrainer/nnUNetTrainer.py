@@ -352,7 +352,7 @@ class nnUNetTrainer(object):
 
     def _build_loss(self):
         # print("{self.__class__.__name__} loss function per configuration manager: ", self.configuration_manager.lossFunction)
-        classWeights = torch.tensor([1., 10., 40.])
+        classWeights = torch.tensor([1., 10., 20.])
         # move classWeights to the device
         # classWeights = classWeights.to(self.device)
         if self.label_manager.has_regions:
