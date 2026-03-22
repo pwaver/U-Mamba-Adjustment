@@ -93,16 +93,10 @@ def parallel_stabilized_simple(
         ],
         dim=-2,
     )  # (B, NH, S+1, 1)
-    # for each batch/head this is a matrix of shape (S+1, S+1) containing the cumsum of the log forget gate values
-    # in the second dimension (colum dimension). Each row has the same is a copy of the first row.
-    # First entry of each row is zero.
-    rep_log_fgates_cumsum = log_fgates_cumsum.repeat(1, 1, 1, S + 1)  # (B, NH, S+1, S+1)
-    # Now in each row cut off / subtract the forgetgate values of the later timesteps
-    # where col j > row i
+    rep_log_fgates_cumsum = log_fgates_cumsum.expand(-1, -1, -1, S + 1)  # (B, NH, S+1, S+1)
     _log_fg_matrix = rep_log_fgates_cumsum - rep_log_fgates_cumsum.transpose(-2, -1)  # (B, NH, S+1, S+1)
-    # Causal masking & selection of the correct submatrix, such that forgetgate at timestep t is not applied
-    # to the input at timestep t
-    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], -float("inf"))  # (B, NH, S, S)
+    # Causal masking — use large negative instead of -inf for ONNX compatibility
+    log_fg_matrix = torch.where(ltr, _log_fg_matrix[:, :, 1:, 1:], torch.tensor(-1e38, dtype=_dtype, device=_device))  # (B, NH, S, S)
 
     # gate decay matrix D (combination of forget gate and input gate)
     log_D_matrix = log_fg_matrix + igate_preact.transpose(-2, -1)  # (B, NH, S, S)
@@ -156,13 +150,13 @@ class LinearHeadwiseExpand(nn.Module):
             nn.init.zeros_(self.bias.data)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = einops.rearrange(x, "... (nh d) -> ... nh d", nh=self.num_heads)
-        x = einops.einsum(
-            x,
-            self.weight,
-            "... nh d, nh out_d d -> ... nh out_d",
-        )
-        x = einops.rearrange(x, "... nh out_d -> ... (nh out_d)")
+        # Reshape: (..., NH*D) -> (..., NH, D)
+        leading = x.shape[:-1]
+        x = x.reshape(*leading, self.num_heads, -1)
+        # Per-head linear: (..., NH, D) @ (NH, OUT_D, D)^T -> (..., NH, OUT_D)
+        x = torch.einsum("...hd,hod->...ho", x, self.weight)
+        # Reshape back: (..., NH, OUT_D) -> (..., NH*OUT_D)
+        x = x.reshape(*leading, -1)
         if self.bias is not None:
             x = x + self.bias
         return x
@@ -211,13 +205,12 @@ class CausalConv1d(nn.Module):
         self.conv.reset_parameters()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # conv requires dim first
-        x = einops.rearrange(x, "b l d -> b d l")
-        # causal conv1d
+        # (B, L, D) -> (B, D, L) for Conv1d
+        x = x.permute(0, 2, 1)
         x = self.conv(x)
         x = x[:, :, :-self.pad]
-        # back to dim last
-        x = einops.rearrange(x, "b d l -> b l d")
+        # (B, D, L) -> (B, L, D)
+        x = x.permute(0, 2, 1)
         return x
 
 
@@ -271,19 +264,22 @@ class LayerNorm(nn.Module):
 class MultiHeadLayerNorm(LayerNorm):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.ndim == 4, "Input must be 4D tensor (B, NH, S, DH)"
-        B, NH, S, DH = x.shape
-
-        gn_in_1 = x.transpose(1, 2)  # (B, S, NH, DH)
-        gn_in_2 = gn_in_1.reshape(B * S, NH * DH)  # (B * S, NH * DH)
-        out = F.group_norm(
-            gn_in_2,
-            num_groups=NH,
-            weight=self.weight_proxy,
-            bias=self.bias,
-            eps=self.eps,
-        )  # .to(x.dtype)
-        # (B * S), (NH * DH) -> (B, S, NH, DH) -> (B, NH, S, DH)
-        out = out.view(B, S, NH, DH).transpose(1, 2)
+        # x: (B, NH, S, DH) — normalize each head independently over DH.
+        # This is equivalent to the original group_norm(B*S, NH*DH, groups=NH)
+        # but avoids the B*S merge that breaks ONNX batch tracking.
+        # Normalize over the last dimension (DH) per head.
+        mean = x.mean(dim=-1, keepdim=True)
+        var = x.var(dim=-1, keepdim=True, correction=0)
+        out = (x - mean) / torch.sqrt(var + self.eps)
+        # Apply per-head scale (and optional bias). weight_proxy has shape (NH*DH,).
+        # Reshape to (1, NH, 1, DH) for broadcasting.
+        NH, DH = x.shape[1], x.shape[3]
+        if self.weight_proxy is not None:
+            scale = self.weight_proxy.reshape(1, NH, 1, DH)
+            out = out * scale
+        if self.bias is not None:
+            bias = self.bias.reshape(1, NH, 1, DH)
+            out = out + bias
         return out
 
 
