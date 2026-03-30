@@ -1,11 +1,12 @@
 # %% Imports and configuration
+1+2
 import torch
 import dill
 import os
 
 # Paths
-pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/UXlstmBot-nnUNetPlans_2d-reduced3-DC_and_CE_loss-w-1-20-40-dill.pth"
-outputDir = "/Volumes/X10Pro/AWIBuffer/NetModels/"
+pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/ResidualEncoderUNet-nnUNetPlans_2d-reduced3-lowdosesim-DC_and_CE_loss-w-1-10-20-dill.pth"
+outputDir = "/Volumes/X10Pro/AWIBuffer/NetModels/Onnx/"
 
 # Derive output filename: strip "-dill.pth" -> ".onnx"
 baseName = os.path.basename(pthModelPath).replace("-dill.pth", ".onnx")
