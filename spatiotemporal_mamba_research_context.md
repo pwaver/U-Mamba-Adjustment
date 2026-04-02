@@ -153,11 +153,59 @@ Possible mitigations (not yet implemented):
 
 ## 10. Next steps for Claude Code
 
-1. **Locate the scan-order code** in the installed U-Mamba source tree
-2. **Implement the temporal-first permutation** as a minimal modification
-3. **Create a new nnU-Net trainer class** (e.g., `nnUNetTrainerUMambaEncTemporalFirst`) that uses the modified scan order
-4. **Set up the three-way comparison experiment** on test data
-5. If temporal-first shows improvement, consider implementing Vivim's full tri-directional scan (forward temporal + backward temporal + spatial) as a more complete modification within the U-Mamba/nnU-Net framework
+### Immediate task: Locate and understand the scan-order code
+
+1. **Find the Mamba block** in the installed U-Mamba source tree
+2. **Identify the exact point** where the 3D feature tensor is flattened into a 1D sequence before the SSM forward pass
+3. **Understand the current scan order** — how is (D, H, W) mapped to the 1D sequence?
+
+### Staged experimental design
+
+The experiments below are designed to test two interacting hypotheses: (a) whether temporal-first scan order improves segmentation, and (b) whether Mamba-3's complex-valued states specifically benefit temporal modeling. The stages are ordered by implementation difficulty and scientific informativeness.
+
+**Stage 1: Temporal-first scan order (Mamba-3 as-is)**
+
+Modify the tensor permutation so the SSM scans the temporal axis first (all frames at each spatial location as a contiguous subsequence, then moving to the next spatial location). This is a reshape/permute change only — no new architecture.
+
+Create a new nnU-Net trainer class (e.g., `nnUNetTrainerUMambaEncTemporalFirst`).
+
+Three-way comparison on the same data:
+- Standard U-Mamba with Mamba-3 (default spatial-first scan) — baseline
+- U-Mamba with Mamba-3 (temporal-first scan) — experimental
+- Standard nnU-Net (no Mamba, pure convolution) — control
+
+This answers: *Does temporal-first scan order help at all?*
+
+**Stage 2: Complex vs real in temporal-first (isolating the interaction)**
+
+Compare Mamba-3 (complex-valued, with RoPE-based rotation) vs Mamba-2 (real-valued) using the **same temporal-first scan order**. Also compare both in the default spatial-first scan order.
+
+This is a 2×2 design:
+- Mamba-3 (complex) × spatial-first
+- Mamba-3 (complex) × temporal-first
+- Mamba-2 (real) × spatial-first
+- Mamba-2 (real) × temporal-first
+
+This answers the critical question: *Do complex eigenvalues help specifically when scanning temporally?*
+
+The reasoning: Mamba-3's complex states allow the SSM hidden state to **rotate** (oscillate) rather than only decay. Along the temporal axis, there is genuine oscillatory structure — the cardiac motion creates a quasi-periodic modulation of pixel intensity at the heart rate (~1 Hz). Along the spatial axes, there is no such periodicity. Therefore:
+- If Mamba-3 outperforms Mamba-2 specifically in temporal-first but not spatial-first, the complex eigenvalues are capturing cardiac-frequency dynamics — strong evidence for asymmetric design.
+- If Mamba-3 outperforms Mamba-2 regardless of scan order, the rotation is doing something more generic (better positional encoding), and asymmetric design is less critical.
+- If neither scan order nor complex/real matters, the temporal signal may not be discriminative beyond what convolutions already capture.
+
+**Stage 3: Asymmetric architecture (complex temporal + real spatial branches)**
+
+If Stages 1-2 show that temporal-first + complex states help, implement a parallel-branch design within U-Mamba/nnU-Net:
+
+- **Temporal branch**: Mamba-3 with complex/RoPE states. Scans temporal-first. The rotation angle θ_t can learn to lock onto the cardiac frequency. The scalar decay tracks the bolus envelope. Hidden state magnitude encodes bolus amplitude; phase encodes cardiac cycle position.
+- **Spatial branch**: Real-valued (Mamba-2 or Mamba-3 without rotation). Scans spatially within each frame. No periodic structure to exploit — just vessel geometry, catheter position, local context.
+- **Fusion**: Concatenate or add branch outputs before the decoder.
+
+This is essentially a Vivim-like tri-directional design but with Mamba-3's complex states in the temporal branch, implemented within the nnU-Net framework. The physics motivation: the temporal dimension has oscillatory dynamics (cardiac motion) that benefit from complex representation; the spatial dimensions don't. Match the inductive bias to the data structure on a per-axis basis.
+
+**Stage 4 (future): Cardiac-phase conditioning**
+
+If the complex temporal branch learns rotation angles that correlate with cardiac phase, explore gating the temporal scan to process only phase-coherent frames. Requires ECG or surrogate cardiac signal (photodiode/pulse-ox synchronization hardware project). Deferred for now.
 
 ## 11. Technical environment
 
