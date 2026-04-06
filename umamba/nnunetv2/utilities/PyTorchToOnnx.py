@@ -5,7 +5,7 @@ import dill
 import os
 
 # Paths
-pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/ResidualEncoderUNet-nnUNetPlans_2d-reduced3-lowdosesim-DC_and_CE_loss-w-1-10-20-dill.pth"
+pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/UMambaBot3-nnUNetPlans_2d-reduced3-lowdosesim-DC_and_CE_loss-w-1-10-20-dill.pth"
 outputDir = "/Volumes/X10Pro/AWIBuffer/NetModels/Onnx/"
 
 # Derive output filename: strip "-dill.pth" -> ".onnx"
