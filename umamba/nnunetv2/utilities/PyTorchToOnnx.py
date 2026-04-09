@@ -1,12 +1,13 @@
 # %% Imports and configuration
-1+2
 import torch
 import dill
 import os
 
 # Paths
-pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/nnUNetTrainerUMambaTSEnc_LowDoseContrastSim-dill.pth"
-outputDir = "/Volumes/X10Pro/AWIBuffer/NetModels/Onnx/"
+# pthModelPath = "/Volumes/X10Pro/AWIBuffer/NetModels/PyTorch/nnUNetTrainerUMambaTSEnc_LowDoseContrastSim-dill.pth"
+pthModelPath = "/home/ubuntu/U-Mamba-Adjustment/data/nets/UMambaEnc-nnUNetPlans_2d-reduced3-DC_and_CE_loss-w-1-10-20-dill.pth"
+# outputDir = "/Volumes/X10Pro/AWIBuffer/NetModels/Onnx/"
+outputDir = "/home/ubuntu/onnx-nets/"
 
 # Derive output filename: strip "-dill.pth" -> ".onnx"
 baseName = os.path.basename(pthModelPath).replace("-dill.pth", ".onnx")
@@ -43,20 +44,20 @@ else:
 # %% Export to ONNX
 print(f"Exporting ONNX to: {onnxOutputPath}")
 
-# Move model and input to CPU for ONNX export compatibility
-model_cpu = model.cpu()
-dummy_input_cpu = torch.randn(1, 5, 512, 512, dtype=torch.float32)
-
+# Trace on the same device as the forward test above; the ONNX file is not tied to that device.
 # Static axes only — Mathematica's ONNX importer requires a fully static graph.
-torch.onnx.export(
-    model_cpu,
-    dummy_input_cpu,
-    onnxOutputPath,
-    export_params=True,
-    opset_version=18,
-    input_names=["input"],
-    output_names=["output"],
-)
+# training=EVAL documents inference-only export (also the default). inference_mode matches eval().
+with torch.inference_mode():
+    torch.onnx.export(
+        model,
+        dummy_input,
+        onnxOutputPath,
+        export_params=True,
+        opset_version=18,
+        training=torch.onnx.TrainingMode.EVAL,
+        input_names=["input"],
+        output_names=["output"],
+    )
 
 print(f"ONNX model exported to: {onnxOutputPath}")
 
@@ -116,3 +117,5 @@ onnx_model = onnx.load(onnxOutputPath)
 onnx.checker.check_model(onnx_model)
 print("ONNX model validation passed.")
 print(f"File size: {os.path.getsize(onnxOutputPath) / 1e6:.1f} MB")
+
+# %%
