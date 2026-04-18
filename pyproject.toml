@@ -7,8 +7,12 @@ requires-python = ">=3.11"
 dependencies = [
     "cmake>=4.2.3",
     "dill>=0.4.1",
+    "h5py>=3.16.0",
+    "matplotlib>=3.10.8",
     "onnx>=1.20.1",
     "onnxruntime>=1.24.4",
     "onnxscript>=0.6.2",
+    "opencv-python>=4.13.0.92",
+    "simpleitk>=2.5.3",
     "torch>=2.10.0",
 ]
