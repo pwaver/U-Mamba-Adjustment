@@ -126,3 +126,7 @@ ENV/
 umamba/=1.2.0
 =1.2.0
 data/**/*.b2nd
+
+# Python virtual environments
+.venv/
+venv/
