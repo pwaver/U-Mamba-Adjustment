@@ -9,11 +9,9 @@ from pathlib import Path
 # angiographyDataFile = "/path/to/your/angiography.h5"
 # nnUNetRawFolder = "/path/to/nnUNet/raw/folder"
 angiographyDataFile = str(Path.home() / "Angiostore/WebknossosAngiogramsRevisedUInt8List.h5")
-annotationDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedUnitized-5.h5")
-annotationIndicizedDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedIndicized-3.h5")
+annotationDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5")
+annotationIndicizedDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedIndicized-4.h5")
 nnUNetRawFolder = str(Path.home()/ "Angiostore/nnUnet_raw")
-
-annotationBitfieldDataFile = str(Path.home()/ "Angiostore/WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5")
 
 
 # %%
@@ -94,68 +92,117 @@ frameKeys = export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, c
 
 def indicize_annotations(annotationDataFile, annotationIndicizedDataFile):
     """
-    Transform 5-channel unitized annotations to single-channel indicized format.
-    
-    Rules:
-    (0,0,0,*,*) -> 0  # background
-    (0,1,0,*,*) -> 1  # catheter
-    (0,0,1,0,*) -> 2  # vessel
-    (0,0,*,1,*) -> 0  # stenosis (maps to background)
+    Convert the bitfield annotation HDF5 file into a single-channel indicized HDF5 file
+    suitable for nnUNet segmentation training.
+
+    SOURCE FORMAT — WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5
+    -----------------------------------------------------------------------
+    Each dataset has shape (frames, H, W), dtype uint8.
+    Each voxel stores a BITFIELD where each bit encodes one annotation layer:
+
+        Bit 0  mask=0x01  value=  1  channel 0: explicit background   (NEVER SET in practice)
+        Bit 1  mask=0x02  value=  2  channel 1: catheter
+        Bit 2  mask=0x04  value=  4  channel 2: vessel
+        Bit 3  mask=0x08  value=  8  channel 3: stenosis
+        Bit 4  mask=0x10  value= 16  channel 4: unknown/unannotated    (~90-96% of voxels)
+
+    Multiple bits can be set simultaneously (e.g. value=6 = vessel+catheter overlap).
+    Values outside the range 0–31 would indicate unexpected annotation layers.
+
+    TARGET FORMAT — annotationIndicizedDataFile
+    -----------------------------------------------------------------------
+    Each dataset has shape (frames, H, W), dtype uint8.
+    Each voxel holds a single class index:
+        0 = background  (no catheter or vessel; stenosis also collapses to 0)
+        1 = catheter
+        2 = vessel
+
+    PRIORITY RULES when bits overlap:
+        - stenosis (bit 3) suppresses vessel: stenosis voxels → label 0
+        - vessel > catheter when both present (original formula behavior)
+        - catheter-only → label 1
+        - background/unknown-only → label 0
     """
-    
-    def dataset_transform(data):
-        catheter = data[1]
-        vessel =  2 * (data[2] - data[2]*data[3]) 
-        result = catheter + vessel - data[1]*data[2] 
-        
-        return result
-    
-    # Open both files
+
+    if os.path.exists(annotationIndicizedDataFile):
+        print(f"Indicized annotation file already exists, skipping: {annotationIndicizedDataFile}")
+        return
+
+    # ---- Upfront structural validation of the bitfield source file ----
+    print("Validating bitfield annotation file structure...")
+    with h5py.File(annotationDataFile, 'r') as f_in:
+        sample_key = list(f_in.keys())[0]
+        sample = f_in[sample_key][:]
+
+        # Must be 3D (frames, H, W) — NOT 4D like the old 5-channel unitized format
+        assert sample.ndim == 3, (
+            f"Expected bitfield data to be 3D (frames, H, W), got ndim={sample.ndim}. "
+            "Did you accidentally point to the old 5-channel unitized file?"
+        )
+
+        # Must be uint8 to hold packed bits
+        assert sample.dtype == np.uint8, (
+            f"Expected dtype uint8 for bitfield data, got {sample.dtype}."
+        )
+
+        # Values must fit within 5 bits (0–31). Bits 5–7 should never be set.
+        max_val = int(sample.max())
+        assert max_val <= 31, (
+            f"Unexpected bitfield values > 31 found (max={max_val}). "
+            "Bits 5–7 should be zero — this suggests extra annotation layers exist."
+        )
+
+        # Sanity: bit 4 (value 16, unknown/background) should dominate
+        bit4_fraction = float((sample & 0x10).astype(bool).mean())
+        assert bit4_fraction > 0.5, (
+            f"Expected bit 4 (unknown/background) to dominate (>50%), "
+            f"got {bit4_fraction:.1%}. Bitfield encoding may have changed."
+        )
+        print(f"  Validation passed: ndim=3, dtype=uint8, max_value={max_val}, "
+              f"background_fraction={bit4_fraction:.1%}")
+
+    def dataset_transform(bitfield: np.ndarray) -> np.ndarray:
+        """
+        Map a single (frames, H, W) uint8 bitfield array → (frames, H, W) uint8 label array.
+
+        Bit extraction — each Boolean array is True where that annotation layer is active:
+            catheter  = bit 1  (mask 0x02)
+            vessel    = bit 2  (mask 0x04)
+            stenosis  = bit 3  (mask 0x08)
+
+        Combination formula (preserved from the original 5-channel indicize logic):
+            vessel is suppressed where stenosis is also set
+            catheter + vessel overlap resolves to vessel (formula gives label 2)
+
+        Label arithmetic (all terms are 0 or 1 before scaling):
+            result = catheter + 2*(vessel & ~stenosis) - catheter*vessel
+        """
+        catheter  = (bitfield & 0x02).astype(np.uint8) >> 1   # 0 or 1
+        vessel    = (bitfield & 0x04).astype(np.uint8) >> 2   # 0 or 1
+        stenosis  = (bitfield & 0x08).astype(np.uint8) >> 3   # 0 or 1
+
+        # Vessel is suppressed wherever stenosis is active; scale vessel contribution to label 2
+        vessel_masked = vessel * (1 - stenosis)                # 0 if stenosis, else vessel
+        result = catheter + 2 * vessel_masked - catheter * vessel_masked
+        return result.astype(np.uint8)
+
+    print("Indicizing bitfield annotations → single-channel label file...")
     with h5py.File(annotationDataFile, 'r') as f_in, \
          h5py.File(annotationIndicizedDataFile, 'w') as f_out:
-        
-        # Process each dataset
-        for dataset_name in f_in.keys():
-            print(f"Processing dataset: {dataset_name}")
-            
-            # Read input data
-            data = f_in[dataset_name][:]
-            print(f"Dataset shape: {data.shape}")
-            transformed = dataset_transform(data)
-            print(f"Transformed shape: {transformed.shape}")
-            
-            # Create output dataset
-            output_shape = transformed.shape
-            dset_out = f_out.create_dataset(
-                dataset_name,
-                output_shape,
-                dtype=np.uint8
-            )
-            
-            # Write transformed data
-            dset_out[:] = transformed
-            
-            # Verify unique values
-            unique_values = np.unique(dset_out[:])
-            print(f"  Dataset {dataset_name} unique values: {unique_values}")
-            
-        print("Transformation complete!")
+        for key in f_in.keys():
+            bitfield_data = f_in[key][:]           # shape: (frames, H, W), dtype uint8
+            label_data = dataset_transform(bitfield_data)
+            f_out.create_dataset(key, data=label_data, dtype=np.uint8)
+            print(f"  Indicized: {key}, shape={label_data.shape}, "
+                  f"labels={np.unique(label_data).tolist()}")
 
-# Example usage:
-# transform_annotations(annotationDataFile, annotationIndicizedDataFile)
-
-# For debugging, let's also print the shape of the first dataset
-with h5py.File(annotationDataFile, 'r') as f:
-    first_dataset_name = list(f.keys())[0]
-    first_dataset = f[first_dataset_name][:]
-    print(f"First dataset shape: {first_dataset.shape}")
+    print(f"Indicized annotation file written: {annotationIndicizedDataFile}")
 
 # %%
-# Example paths (adjust as needed)
-# annotationDataFile = "/path/to/5channel/annotations.h5"
-# annotationIndicizedDataFile = "/path/to/output/indicized_annotations.h5"
-
-indicize_annotations(annotationDataFile, annotationIndicizedDataFile)
+if os.path.exists(annotationIndicizedDataFile):
+    print(f"Indicized file already exists at {annotationIndicizedDataFile} — skipping.")
+else:
+    indicize_annotations(annotationDataFile, annotationIndicizedDataFile)
 
 # %%
 def get_hdf5_keys(hdf5_file: str) -> list[str]:

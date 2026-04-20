@@ -1,0 +1,6 @@
+#!/home/ubuntu/U-Mamba-Adjustment/.venv/bin/python3.10
+import sys
+from nnunetv2.evaluation.evaluate_predictions import evaluate_simple_entry_point
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(evaluate_simple_entry_point())

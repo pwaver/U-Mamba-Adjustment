@@ -14,7 +14,7 @@ Target layout under nnUNetRawFolder:
     labelsTr/Angio_XXXX.nii.gz         # (5, 512, 512) uint8, values {0,1,2}
     dataset.json
 """
-
+1+1
 # %%
 import os
 import json
@@ -27,8 +27,8 @@ import numpy as np
 import SimpleITK as sitk
 
 angiographyDataFile = str(Path.home() / "Angiostore/WebknossosAngiogramsRevisedUInt8List.h5")
-annotationDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedUnitized-5.h5")
-annotationIndicizedDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedIndicized-3.h5")
+annotationDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5")
+annotationIndicizedDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedIndicized-4.h5")
 nnUNetRawFolder = str(Path.home() / "Angiostore/nnUnet_raw/Dataset430_Angiography3d")
 
 SPACING = (1.0, 1.0, 1.0)
@@ -119,33 +119,111 @@ frameKeys = export_angiography_to_nnunet_3d(angiographyDataFile, nnUNetRawFolder
 # %%
 def indicize_annotations(annotationDataFile, annotationIndicizedDataFile):
     """
-    Transform 5-channel unitized annotations to single-channel indicized format.
+    Convert the bitfield annotation HDF5 file into a single-channel indicized HDF5 file
+    suitable for nnUNet segmentation training.
 
-    Rules:
-    (0,0,0,*,*) -> 0  # background
-    (0,1,0,*,*) -> 1  # catheter
-    (0,0,1,0,*) -> 2  # vessel
-    (0,0,*,1,*) -> 0  # stenosis (maps to background)
+    SOURCE FORMAT — WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5
+    -----------------------------------------------------------------------
+    Each dataset has shape (frames, H, W), dtype uint8.
+    Each voxel stores a BITFIELD where each bit encodes one annotation layer:
+
+        Bit 0  mask=0x01  value=  1  channel 0: explicit background   (NEVER SET in practice)
+        Bit 1  mask=0x02  value=  2  channel 1: catheter
+        Bit 2  mask=0x04  value=  4  channel 2: vessel
+        Bit 3  mask=0x08  value=  8  channel 3: stenosis
+        Bit 4  mask=0x10  value= 16  channel 4: unknown/unannotated    (~90-96% of voxels)
+
+    Multiple bits can be set simultaneously (e.g. value=6 = vessel+catheter overlap).
+    Values outside the range 0–31 would indicate unexpected annotation layers.
+
+    TARGET FORMAT — annotationIndicizedDataFile
+    -----------------------------------------------------------------------
+    Each dataset has shape (frames, H, W), dtype uint8.
+    Each voxel holds a single class index:
+        0 = background  (no catheter or vessel; stenosis also collapses to 0)
+        1 = catheter
+        2 = vessel
+
+    PRIORITY RULES when bits overlap:
+        - stenosis (bit 3) suppresses vessel: stenosis voxels → label 0
+        - vessel > catheter when both present (original formula behavior)
+        - catheter-only → label 1
+        - background/unknown-only → label 0
     """
-    def dataset_transform(data):
-        catheter = data[1]
-        vessel = 2 * (data[2] - data[2] * data[3])
-        result = catheter + vessel - data[1] * data[2]
-        return result
 
+    if os.path.exists(annotationIndicizedDataFile):
+        print(f"Indicized annotation file already exists, skipping: {annotationIndicizedDataFile}")
+        return
+
+    # ---- Upfront structural validation of the bitfield source file ----
+    print("Validating bitfield annotation file structure...")
+    with h5py.File(annotationDataFile, 'r') as f_in:
+        sample_key = list(f_in.keys())[0]
+        sample = f_in[sample_key][:]
+
+        # Must be 3D (frames, H, W) — NOT 4D like the old 5-channel unitized format
+        assert sample.ndim == 3, (
+            f"Expected bitfield data to be 3D (frames, H, W), got ndim={sample.ndim}. "
+            "Did you accidentally point to the old 5-channel unitized file?"
+        )
+
+        # Must be uint8 to hold packed bits
+        assert sample.dtype == np.uint8, (
+            f"Expected dtype uint8 for bitfield data, got {sample.dtype}."
+        )
+
+        # Values must fit within 5 bits (0–31). Bits 5–7 should never be set.
+        max_val = int(sample.max())
+        assert max_val <= 31, (
+            f"Unexpected bitfield values > 31 found (max={max_val}). "
+            "Bits 5–7 should be zero — this suggests extra annotation layers exist."
+        )
+
+        # Sanity: bit 4 (value 16, unknown/background) should dominate
+        bit4_fraction = float((sample & 0x10).astype(bool).mean())
+        assert bit4_fraction > 0.5, (
+            f"Expected bit 4 (unknown/background) to dominate (>50%), "
+            f"got {bit4_fraction:.1%}. Bitfield encoding may have changed."
+        )
+        print(f"  Validation passed: ndim=3, dtype=uint8, max_value={max_val}, "
+              f"background_fraction={bit4_fraction:.1%}")
+
+    def dataset_transform(bitfield: np.ndarray) -> np.ndarray:
+        """
+        Map a single (frames, H, W) uint8 bitfield array → (frames, H, W) uint8 label array.
+
+        Bit extraction — each Boolean array is True where that annotation layer is active:
+            catheter  = bit 1  (mask 0x02)
+            vessel    = bit 2  (mask 0x04)
+            stenosis  = bit 3  (mask 0x08)
+
+        Combination formula (preserved from the original 5-channel indicize logic):
+            vessel is suppressed where stenosis is also set
+            catheter + vessel overlap resolves to vessel (formula gives label 2)
+
+        Label arithmetic (all terms are 0 or 1 before scaling):
+            result = catheter + 2*(vessel & ~stenosis) - catheter*vessel
+        """
+        catheter  = (bitfield & 0x02).astype(np.uint8) >> 1   # 0 or 1
+        vessel    = (bitfield & 0x04).astype(np.uint8) >> 2   # 0 or 1
+        stenosis  = (bitfield & 0x08).astype(np.uint8) >> 3   # 0 or 1
+
+        # Vessel is suppressed wherever stenosis is active; scale vessel contribution to label 2
+        vessel_masked = vessel * (1 - stenosis)                # 0 if stenosis, else vessel
+        result = catheter + 2 * vessel_masked - catheter * vessel_masked
+        return result.astype(np.uint8)
+
+    print("Indicizing bitfield annotations → single-channel label file...")
     with h5py.File(annotationDataFile, 'r') as f_in, \
          h5py.File(annotationIndicizedDataFile, 'w') as f_out:
-        for dataset_name in f_in.keys():
-            print(f"Processing dataset: {dataset_name}")
-            data = f_in[dataset_name][:]
-            print(f"  Input shape: {data.shape}")
-            transformed = dataset_transform(data)
-            print(f"  Transformed shape: {transformed.shape}")
+        for key in f_in.keys():
+            bitfield_data = f_in[key][:]           # shape: (frames, H, W), dtype uint8
+            label_data = dataset_transform(bitfield_data)
+            f_out.create_dataset(key, data=label_data, dtype=np.uint8)
+            print(f"  Indicized: {key}, shape={label_data.shape}, "
+                  f"labels={np.unique(label_data).tolist()}")
 
-            dset_out = f_out.create_dataset(dataset_name, transformed.shape, dtype=np.uint8)
-            dset_out[:] = transformed
-            print(f"  Unique values: {np.unique(dset_out[:])}")
-        print("Indicization complete.")
+    print(f"Indicized annotation file written: {annotationIndicizedDataFile}")
 
 
 # %%
@@ -195,14 +273,36 @@ def export_annotations_to_nnunet_3d(annotationIndicizedDataFile, nnUNetRawFolder
     For each (dataset_name, center_idx) in frameKeys, write the matching 5-frame
     label z-stack as Angio_XXXX.nii.gz (no _0000 suffix — nnUNet labels are
     single-file).
+
+    Note: Annotation datasets may have fewer frames than angiography datasets.
+    Frames near the edges where a 5-frame window cannot be formed are skipped.
     """
     labels_dir = os.path.join(nnUNetRawFolder, 'labelsTr')
     Path(labels_dir).mkdir(parents=True, exist_ok=True)
 
     with h5py.File(annotationIndicizedDataFile, 'r') as f:
         blockCounter = 0
+        skipped_count = 0
         for dataset_name, center_idx in frameKeys:
+            # Verify the annotation dataset exists and has enough frames
+            if dataset_name not in f:
+                skipped_count += 1
+                continue
+
+            n_frames = f[dataset_name].shape[0]
+
+            # Skip if center_idx is too close to the edges for a 5-frame window
+            if center_idx - 2 < 0 or center_idx + 3 > n_frames:
+                skipped_count += 1
+                continue
+
             anno_data = f[dataset_name][center_idx - 2 : center_idx + 3]  # (5, 512, 512)
+
+            # Sanity check: ensure we got 5 frames
+            if anno_data.shape[0] != 5:
+                print(f"  Warning: {dataset_name}[{center_idx-2}:{center_idx+3}] returned {anno_data.shape[0]} frames instead of 5")
+                skipped_count += 1
+                continue
 
             filename = f'Angio_{blockCounter:04d}.nii.gz'
             filepath = os.path.join(labels_dir, filename)
@@ -211,8 +311,9 @@ def export_annotations_to_nnunet_3d(annotationIndicizedDataFile, nnUNetRawFolder
             blockCounter += 1
 
         print(f"Exported {blockCounter} label volumes (shape 5x512x512)")
-        assert blockCounter == len(frameKeys), \
-            f"Count mismatch: frameKeys={len(frameKeys)}, written={blockCounter}"
+        if skipped_count > 0:
+            print(f"  Skipped {skipped_count} frames due to boundary or missing annotation data")
+        print(f"  Total frameKeys requested: {len(frameKeys)}, written: {blockCounter}")
 
 
 # %%

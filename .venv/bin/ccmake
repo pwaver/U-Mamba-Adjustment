@@ -1,0 +1,6 @@
+#!/home/ubuntu/U-Mamba-Adjustment/.venv/bin/python3.10
+import sys
+from cmake import ccmake
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(ccmake())
