@@ -310,3 +310,30 @@ Not applicable with on-demand. If you switch to spot: set
 `RESULTS_S3_URI` + `RESULTS_SYNC_INTERVAL=60` so the latest checkpoint is in
 S3; nnUNetv2 can resume from the most recent epoch by adding `--c` to the
 train command.
+
+## 11. Resuming after incomplete ECR push
+
+The `umamba-ts` ECR repository does not yet exist (push was interrupted).
+The built image lives on the Ubuntu home workstation (Quadro RTX). The Mac
+cannot build a replacement — it has no CUDA/nvcc and is ARM64, not x86_64.
+
+**Steps to complete once back at the Ubuntu workstation:**
+
+```bash
+# 1. Push the existing local image to ECR
+cd /path/to/U-Mamba-Adjustment
+bash scripts/docker-push-ecr.sh
+
+# 2. Confirm the repo exists
+aws ecr describe-repositories --region us-east-1 --output table
+
+# 3. Note the image URI printed by the push script, e.g.:
+#    711110377784.dkr.ecr.us-east-1.amazonaws.com/umamba-ts:g5
+```
+
+**Then launch a GPU training instance (from any machine):**
+
+```bash
+# 4. Launch a g5.xlarge (see Section 4 for full launch options)
+#    and follow Section 5 to pull the image and start Mamba3 training.
+```
