@@ -1,9 +1,9 @@
 We assume we are in the conda environment (in this case called nnunet or umamba, depending on the github repository). We use here the example of a dataset named Dataset332_Angiography. It is in the nnUNet standard location of ./data/nnUNet_raw. Our data are furnished as images frames of size 512x512 pixels. The default 2d UNet planner compresses it in the encoder to 512x4x4, then decodes it with the help of skip connections back to 512x512, one for each class. On the hypothesis that 512x4x4 leads to over-regularization, we wish to reduce the compression. In the example here, we wish the encoder to go to 512x16x16. This is the meaning of the term "edge16" in the nnUNet plan.
 
 The below assumes you are in the correct directory, have directory environment variables set up as necessary, and have activate the correctly installed conda environment. The enviroment variables seem to be needed for nnunetv2 but not umamba. The environment variables that give this file system structure can be given in the shell by calls as
-export nnUNet_raw="/billb/github/nnUNet-Adjustment/data/nnUNet_raw"
-export nnUNet_preprocessed="/billb/github/nnUNet-Adjustment/data/nnUNet_preprocessed"
-export nnUNet_results="/billb/github/nnUNet-Adjustment/data/nnUNet_results"
+export nnUNet_raw="/home/billb/Angiostore/nnUNet_raw"
+export nnUNet_preprocessed="/home/billb/Angiostore/nnUNet_preprocessed"
+export nnUNet_results="/home/billb/Angiostore/nnUNet_results"
 
 or
 
