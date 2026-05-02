@@ -2,65 +2,82 @@
 import h5py
 import numpy as np
 import os
+import random
 import cv2
 from pathlib import Path
 
-# Example paths (adjust as needed)
-# angiographyDataFile = "/path/to/your/angiography.h5"
-# nnUNetRawFolder = "/path/to/nnUNet/raw/folder"
-angiographyDataFile = str(Path.home() / "Angiostore/WebknossosAngiogramsRevisedUInt8List.h5")
-annotationDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5")
-annotationIndicizedDataFile = str(Path.home() / "Angiostore/WebknossosAnnotationsRevisedIndicized-4.h5")
-nnUNetRawFolder = str(Path.home()/ "Angiostore/nnUnet_raw")
+# ============================================================================
+# CONFIGURATION — root directory that holds the Angiostore HDF5 inputs and
+# where the nnUNet raw output is written. Switch this to relocate all data.
+# Examples:
+#   Path.home() / "Angiostore"                  # home drive (HDD)
+#   Path("/media/billb/WMDPP/Angiostore")       # WMDPP SSD
+# ============================================================================
+ANGIOSTORE_ROOT = Path("/media/billb/WMDPP/Angiostore")
+
+angiographyDataFile = str(ANGIOSTORE_ROOT / "WebknossosAngiogramsRevisedUInt8List.h5")
+annotationDataFile = str(ANGIOSTORE_ROOT / "WebknossosAnnotationsRevisedUnitized-5-Bitfield.h5")
+annotationIndicizedDataFile = str(ANGIOSTORE_ROOT / "WebknossosAnnotationsRevisedIndicized-4.h5")
+nnUNetRawFolder = str(ANGIOSTORE_ROOT / "nnUnet_raw")
 
 
 # %%
 def get_common_keys(angiographyDataFile, annotationDataFile):
     """
-    Get the intersection of keys between the two HDF5 files
+    Get the intersection of keys between the two HDF5 files,
+    plus per-dataset min frame counts (angio and annotation can disagree).
     """
     with h5py.File(angiographyDataFile, 'r') as f_angio, \
          h5py.File(annotationDataFile, 'r') as f_anno:
-        
+
         angio_keys = set(f_angio.keys())
         anno_keys = set(f_anno.keys())
         common_keys = sorted(list(angio_keys.intersection(anno_keys)))
-        
+
         print(f"Angiography keys: {len(angio_keys)}")
         print(f"Annotation keys: {len(anno_keys)}")
         print(f"Common keys: {len(common_keys)}")
-        
-        return common_keys
+
+        min_frames = {}
+        for k in common_keys:
+            na = f_angio[k].shape[0]
+            nb = f_anno[k].shape[0]
+            min_frames[k] = min(na, nb)
+            if na != nb:
+                print(f"  WARNING: {k} angio={na} anno={nb} -> using min={min(na, nb)}")
+
+        return common_keys, min_frames
 
 
 # %%
 # Get common keys first
-common_keys = get_common_keys(angiographyDataFile, annotationDataFile)
+common_keys, min_frames = get_common_keys(angiographyDataFile, annotationDataFile)
 
 # If you want to see the keys before proceeding
 print("Common keys:", common_keys)
 
 # %%
 
-def export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, common_keys):
+def export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, common_keys, min_frames):
     """
-    Modified to only process common keys
+    Modified to only process common keys, capping per-dataset frame count
+    by min(angio, annotation) so labels and images stay aligned.
     """
     images_dir = os.path.join(nnUNetRawFolder, 'imagesTr')
     Path(images_dir).mkdir(parents=True, exist_ok=True)
-    
+
     frameKeys=[]
-    
+
     with h5py.File(angiographyDataFile, 'r') as f:
         blockCounter = 0
-        
+
         # Only iterate through common keys
         for dataset_name in common_keys:
             print(f"Processing angiogram dataset: {dataset_name}")
             angio_data = f[dataset_name][:]
-            
-            n_frames = angio_data.shape[0]
-            
+
+            n_frames = min_frames[dataset_name]
+
             for center_idx in range(2, n_frames - 2):
                 frameKeys.append([dataset_name, center_idx])
                 frame_indices = range(center_idx - 2, center_idx + 3)
@@ -85,7 +102,7 @@ def export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, common_ke
 
 
 # %%
-frameKeys = export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, common_keys)
+frameKeys = export_angiography_to_nnunet(angiographyDataFile, nnUNetRawFolder, common_keys, min_frames)
 
 
 # %%
@@ -253,7 +270,9 @@ print(key, example_data.shape)
 
 
 # %%
-# Display as an image
+# Display as an image (diagnostic only — non-blocking when run as a script)
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 plt.figure(figsize=(10, 10))
@@ -261,7 +280,7 @@ plt.imshow(example_data[30], cmap='gray')
 plt.colorbar()
 plt.title('example_data[30]')
 plt.axis('on')
-plt.show()
+plt.close()
 
 
 # %%
