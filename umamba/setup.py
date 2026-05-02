@@ -32,7 +32,7 @@ setup(name='nnunetv2',
           "seaborn",
           "imagecodecs",
           "yacs",
-          "monai==1.3.0",
+          "monai>=1.4.0",  # 1.3.0 uses importer.find_module(), removed in Python 3.12
           "opencv-python"
       ],
       entry_points={

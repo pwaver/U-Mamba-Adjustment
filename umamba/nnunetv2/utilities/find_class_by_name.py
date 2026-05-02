@@ -9,7 +9,15 @@ def recursive_find_python_class(folder: str, class_name: str, current_module: st
     for importer, modname, ispkg in pkgutil.iter_modules([folder]):
         # print(modname, ispkg)
         if not ispkg:
-            m = importlib.import_module(current_module + "." + modname)
+            try:
+                m = importlib.import_module(current_module + "." + modname)
+            except Exception as e:
+                # Skip trainer modules that fail to import (e.g. optional CUDA-only deps
+                # like mamba_ssm missing on CPU/Turing boxes). One broken sibling shouldn't
+                # block discovery of an unrelated trainer.
+                print(f"[recursive_find_python_class] skipping {current_module}.{modname}: "
+                      f"{type(e).__name__}: {e}")
+                continue
             if hasattr(m, class_name):
                 tr = getattr(m, class_name)
                 break
